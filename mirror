@@ -1,0 +1,127 @@
+#!/bin/python
+
+"""
+MIRROR/MIR (rewritten)
+- rsync wrapper to sync files within a given directory to/from servers
+- requires a .mirrors file in the root directory of sync
+    - line format: <name> <path/to/server/root>
+    - example: jureca jureca12:/p/project/cjibg12/scratch
+
+USAGE: 
+    `mir -t TARGETS...-d`
+    `mir -t TARGETS...`
+    `mir -s SOURCE`
+    `mir FILES... -t TARGETS...`
+
+WARNINGS:
+    - rsync can be dangerous if not used properly
+    - no files are currently ignored
+"""
+
+# TODO: Allow ignoring folders and files
+# TODO: Set choices for --target --source from remotes.keys()
+
+import sys
+import argparse
+import subprocess
+
+from pathlib import Path
+
+PRECMD="rsync -avzhP"
+PRECMDLIST = PRECMD.split()
+
+def findup(name, path:Path):
+    while str(path) != '/':
+        files = [ p.name for p in path.glob('*') if p.is_file() ]
+        if name in files:
+            return path 
+        path = path.parent
+
+def find_files(ignore_files=[], ignore_dirs=['.git']):
+    # return [ p for p in Path('.').rglob('*') if p.is_file() and STATEDIR not in p.parents]
+    ignore_dirs = [Path(dir) for dir in ignore_dirs]
+    ignore_files = [Path(f) for f in ignore_files]
+
+    files = [ p for p in Path('.').rglob('*') if p.is_file() ]
+
+    for dir in ignore_dirs:
+        files = list(filter(lambda f: dir not in f.parents, files))
+    for ignore_file in ignore_files:
+        files = list(filter(lambda f: ignore_file != str(f), files))
+
+    return files
+
+def readINI(filestring):
+    dictionary = {}
+    arr = []
+    try:
+        with open(filestring, "r") as fp:
+            for line in fp:
+                arr = line.strip().split(' ')
+                dictionary[arr[0]] = arr[1]
+    except:
+        raise RuntimeError("Error: .mirrors file not found!")
+
+    return dictionary
+
+def push(files, targets, remotes, dryrun):
+    PRECMDLIST.append('--relative')
+    if targets == ['all']:
+        targets = [ x for x in remotes ]
+    for target in targets:
+        if target in remotes:
+            cmdlist = PRECMDLIST[:]
+            for file in files:
+                cmdlist.append(file)
+            cmdlist.append(str(Path(remotes[target]) / Path('.').resolve().relative_to(str(root)) ))
+            print(cmdlist)
+            if not dryrun:
+                subprocess.run(cmdlist)
+
+def pull(files, source, remotes, dryrun):
+    if source in remotes:
+        cmdlist = PRECMDLIST[:]
+        for file in files:
+            cmdlist.append(str(Path(remotes[source]) / Path('.').resolve().relative_to(str(root)) / file ))
+        cmdlist.append('.')
+        print(cmdlist)
+        if not dryrun:
+            subprocess.run(cmdlist)
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument('files', nargs='*', help='files or directories to sync')
+    ap.add_argument("-t", "--target", nargs='*', help="target servers")
+    ap.add_argument("-s", "--source", help="source server")
+    ap.add_argument("-d", "--dry-run", action='store_true', help="Only show which commands will run")
+    ap.add_argument("--delete", action='store_true', help="delete")
+    args = vars(ap.parse_args())
+    print(args)
+
+    cwd = Path().resolve()
+    global root
+    root = findup(".mirrors", cwd)
+    if root is None:
+        print("No .mirrors found in current or parent directories.")
+        sys.exit()
+    print("found root: ", root)
+    inifile = root / ".mirrors"
+
+    if args['delete']:
+        PRECMDLIST.append('--delete')
+
+    remote = readINI(inifile)
+
+    if not args['files']:
+        args['files'] = ['.']
+
+    if args['target']: 
+        push(args['files'], args['target'], remote, args['dry_run'])
+    elif args['source']:
+        pull(args['files'], args['source'], remote, args['dry_run'])
+    else:
+        raise RuntimeError("No source/target provided!")
+        
+
+if __name__ == "__main__":
+    main()
