@@ -21,6 +21,7 @@ WARNINGS:
 # TODO: Allow ignoring folders and files
 # TODO: Set choices for --target --source from remotes.keys()
 
+import os
 import sys
 import argparse
 import subprocess
@@ -71,8 +72,11 @@ def push(files, targets, remotes, dryrun):
     for target in targets:
         if target in remotes:
             cmdlist = PRECMDLIST[:]
-            for file in files:
-                cmdlist.append(file)
+            if files:
+                for file in files:
+                    cmdlist.append(file)
+            else:
+                cmdlist.append('.')
             cmdlist.append(str(Path(remotes[target]) / Path('.').resolve().relative_to(str(root)) ))
             print(cmdlist)
             if not dryrun:
@@ -81,8 +85,11 @@ def push(files, targets, remotes, dryrun):
 def pull(files, source, remotes, dryrun):
     if source in remotes:
         cmdlist = PRECMDLIST[:]
-        for file in files:
-            cmdlist.append(str(Path(remotes[source]) / Path('.').resolve().relative_to(str(root)) / file ))
+        if files != []:
+            for file in files:
+                cmdlist.append(str(Path(remotes[source]) / Path('.').resolve().relative_to(str(root)) / file ))
+        else: 
+            cmdlist.append(str(Path(remotes[source]) / Path('.').resolve().relative_to(str(root))) + os.sep)
         cmdlist.append('.')
         print(cmdlist)
         if not dryrun:
@@ -112,8 +119,8 @@ def main():
 
     remote = readINI(inifile)
 
-    if not args['files']:
-        args['files'] = ['.']
+    # if not args['files']:
+    #     args['files'] = ['.']
 
     if args['target']: 
         push(args['files'], args['target'], remote, args['dry_run'])
