@@ -19,7 +19,9 @@ WARNINGS:
 """
 
 # TODO: Allow ignoring folders and files
+    # TODO: Ignore .state folder automatically
 # TODO: Set choices for --target --source from remotes.keys()
+# TODO: rsync dry run integration
 
 import os
 import sys
@@ -77,10 +79,13 @@ def push(files, targets, remotes, dryrun):
                     cmdlist.append(file)
             else:
                 cmdlist.append('.')
-            cmdlist.append(str(Path(remotes[target]) / Path('.').resolve().relative_to(str(root)) ))
+            cmdlist.append(str(Path(remotes[target]) / Path('.').resolve().relative_to(str(root)) ) + os.sep)
             print(cmdlist)
             if not dryrun:
                 subprocess.run(cmdlist)
+
+        else:
+            raise RuntimeError(f"Remote {target} not found. Please check {root}/.mirrors.")
 
 def pull(files, source, remotes, dryrun):
     if source in remotes:
