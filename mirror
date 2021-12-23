@@ -67,7 +67,7 @@ def readINI(filestring):
 
     return dictionary
 
-def push(files, targets, remotes, dryrun):
+def push(files, targets, remotes):
     PRECMDLIST.append('--relative')
     if targets == ['all']:
         targets = [ x for x in remotes ]
@@ -81,13 +81,12 @@ def push(files, targets, remotes, dryrun):
                 cmdlist.append('.')
             cmdlist.append(str(Path(remotes[target]) / Path('.').resolve().relative_to(str(root)) ) + os.sep)
             print(cmdlist)
-            if not dryrun:
-                subprocess.run(cmdlist)
+            subprocess.run(cmdlist)
 
         else:
             raise RuntimeError(f"Remote {target} not found. Please check {root}/.mirrors.")
 
-def pull(files, source, remotes, dryrun):
+def pull(files, source, remotes):
     if source in remotes:
         cmdlist = PRECMDLIST[:]
         if files != []:
@@ -97,8 +96,7 @@ def pull(files, source, remotes, dryrun):
             cmdlist.append(str(Path(remotes[source]) / Path('.').resolve().relative_to(str(root))) + os.sep)
         cmdlist.append('.')
         print(cmdlist)
-        if not dryrun:
-            subprocess.run(cmdlist)
+        subprocess.run(cmdlist)
 
 def main():
     ap = argparse.ArgumentParser()
@@ -126,15 +124,18 @@ def main():
     if args['exclude']:
         PRECMDLIST.append(f"--exclude={args['exclude']}")
 
+    if args['dry_run']:
+        PRECMDLIST.append(f"--dry-run")
+
     remote = readINI(inifile)
 
     # if not args['files']:
     #     args['files'] = ['.']
 
     if args['target']: 
-        push(args['files'], args['target'], remote, args['dry_run'])
+        push(args['files'], args['target'], remote)
     elif args['source']:
-        pull(args['files'], args['source'], remote, args['dry_run'])
+        pull(args['files'], args['source'], remote)
     else:
         raise RuntimeError("No source/target provided!")
         
