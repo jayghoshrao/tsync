@@ -107,6 +107,7 @@ def main():
     ap.add_argument("-s", "--source", help="source server")
     ap.add_argument("-d", "--dry-run", action='store_true', help="Only show which commands will run")
     ap.add_argument("--delete", action='store_true', help="delete")
+    ap.add_argument('-e', '--exclude', help='exclude PATTERN')
     args = vars(ap.parse_args())
     print(args)
 
@@ -121,6 +122,9 @@ def main():
 
     if args['delete']:
         PRECMDLIST.append('--delete')
+
+    if args['exclude']:
+        PRECMDLIST.append(f"--exclude={args['exclude']}")
 
     remote = readINI(inifile)
 
