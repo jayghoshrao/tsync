@@ -61,7 +61,7 @@ def readINI(filestring):
         with open(filestring, "r") as fp:
             for line in fp:
                 arr = line.strip().split(' ')
-                dictionary[arr[0]] = arr[1]
+                dictionary[arr[0]] = ' '.join(arr[1:])
     except:
         raise RuntimeError("Error: .mirrors file not found!")
 
