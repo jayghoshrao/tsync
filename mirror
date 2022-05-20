@@ -22,6 +22,7 @@ WARNINGS:
     # TODO: Ignore .state folder automatically
 # TODO: Set choices for --target --source from remotes.keys()
 # TODO: rsync dry run integration
+# TODO: Allow diffing
 
 import os
 import sys
