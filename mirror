@@ -134,9 +134,13 @@ def main():
     #     args['files'] = ['.']
 
     if args['target']: 
-        push(args['files'], args['target'], remote)
+        warn = input(f"PUSH to {args['target']}? (y/Y/ENTER to continue)")
+        if warn.lower() == 'y' or warn == '': 
+            push(args['files'], args['target'], remote)
     elif args['source']:
-        pull(args['files'], args['source'], remote)
+        warn = input(f"PULL from {args['source']}? (y/Y/ENTER to continue)")
+        if warn.lower() == 'y' or warn == '': 
+            pull(args['files'], args['source'], remote)
     else:
         raise RuntimeError("No source/target provided!")
         
