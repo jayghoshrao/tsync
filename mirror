@@ -15,14 +15,12 @@ USAGE:
 
 WARNINGS:
     - rsync can be dangerous if not used properly
-    - no files are currently ignored
+    - .git folder is currently ignored by default
 """
 
-# TODO: Allow ignoring folders and files
-    # TODO: Ignore .state folder automatically
 # TODO: Set choices for --target --source from remotes.keys()
-# TODO: rsync dry run integration
 # TODO: Allow diffing
+# TODO: Find all .mirror files in all parents and mash them together. Closest file should override farthest file.
 
 import os
 import sys
@@ -68,7 +66,7 @@ def readINI(filestring):
 
     return dictionary
 
-def push(files, targets, remotes):
+def push(files, targets, remotes, mkdir=False):
     PRECMDLIST.append('--relative')
     if targets == ['all']:
         targets = [ x for x in remotes ]
@@ -81,9 +79,16 @@ def push(files, targets, remotes):
             else:
                 cmdlist.append('.')
             cmdlist.append(str(Path(remotes[target]) / Path('.').resolve().relative_to(str(root)) ) + os.sep)
+
+            if mkdir: 
+                mkdir_cmd = f'mkdir -p { str(Path(remotes[target])).split(":")[-1] / Path(".").resolve().relative_to(str(root))}{os.sep}'
+                if ':' in remotes[target]:
+                    mkdir_cmd = f'ssh {target} {mkdir_cmd}' 
+                print(mkdir_cmd)
+                subprocess.run(mkdir_cmd.split())
+
             print(cmdlist)
             subprocess.run(cmdlist)
-
         else:
             raise RuntimeError(f"Remote {target} not found. Please check {root}/.mirrors.")
 
@@ -105,8 +110,9 @@ def main():
     ap.add_argument("-t", "--target", nargs='*', help="target servers")
     ap.add_argument("-s", "--source", help="source server")
     ap.add_argument("-d", "--dry-run", action='store_true', help="Only show which commands will run")
+    ap.add_argument("-m", "--mkdir", action='store_true', help="Run `mkdir -p` to enforce folder creation before sync")
     ap.add_argument("--delete", action='store_true', help="delete")
-    ap.add_argument('-e', '--exclude', action='append', default = ['.git', '.state' ], help='exclude PATTERN')
+    ap.add_argument('-e', '--exclude', nargs='*', action='append', default = ['.git', '.state' ], help='exclude PATTERN')
     args = vars(ap.parse_args())
     print(args)
 
@@ -136,7 +142,7 @@ def main():
     if args['target']: 
         warn = input(f"PUSH to {args['target']}? (y/Y/ENTER to continue)")
         if warn.lower() == 'y' or warn == '': 
-            push(args['files'], args['target'], remote)
+            push(args['files'], args['target'], remote, mkdir=args['mkdir'])
     elif args['source']:
         warn = input(f"PULL from {args['source']}? (y/Y/ENTER to continue)")
         if warn.lower() == 'y' or warn == '': 
