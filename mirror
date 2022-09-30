@@ -26,6 +26,7 @@ import os
 import sys
 import argparse
 import subprocess
+from rich import print
 
 from pathlib import Path
 
@@ -107,23 +108,20 @@ def pull(files, source, remotes):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('files', nargs='*', help='files or directories to sync')
-    ap.add_argument("-t", "--target", nargs='*', help="target servers")
-    ap.add_argument("-s", "--source", help="source server")
+
+    meg = ap.add_mutually_exclusive_group()
+    meg.add_argument("-t", "--target", nargs='*', help="target servers")
+    meg.add_argument("-s", "--source", help="source server")
+
+    # TODO: This might get in the way of how relative paths are handled. Needs CAREFUL testing
+    ap.add_argument("-r", "--remote", nargs=2, action='append', help="Don't use .mirrors file, use this specified remote")
+
     ap.add_argument("-d", "--dry-run", action='store_true', help="Only show which commands will run")
     ap.add_argument("-m", "--mkdir", action='store_true', help="Run `mkdir -p` to enforce folder creation before sync")
     ap.add_argument("--delete", action='store_true', help="delete")
     ap.add_argument('-e', '--exclude', nargs='*', action='append', default = ['.git', '.state' ], help='exclude PATTERN')
     args = vars(ap.parse_args())
     print(args)
-
-    cwd = Path().resolve()
-    global root
-    root = findup(".mirrors", cwd)
-    if root is None:
-        print("No .mirrors found in current or parent directories.")
-        sys.exit()
-    print("found root: ", root)
-    inifile = root / ".mirrors"
 
     if args['delete']:
         PRECMDLIST.append('--delete')
@@ -134,7 +132,20 @@ def main():
     if args['dry_run']:
         PRECMDLIST.append(f"--dry-run")
 
-    remote = readINI(inifile)
+    # TODO: Remove global
+    global root
+    cwd = Path().resolve()
+    if args['remote']: 
+        remote = {k:v for k,v in args['remote']}
+        root = cwd
+    else: 
+        root = findup(".mirrors", cwd)
+        if root is None:
+            print("No .mirrors found in current or parent directories.")
+            sys.exit()
+        print("found root: ", root)
+        inifile = root / ".mirrors"
+        remote = readINI(inifile)
 
     # if not args['files']:
     #     args['files'] = ['.']
