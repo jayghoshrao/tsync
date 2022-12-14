@@ -119,7 +119,7 @@ def main():
     ap.add_argument("-d", "--dry-run", action='store_true', help="Only show which commands will run")
     ap.add_argument("-m", "--mkdir", action='store_true', help="Run `mkdir -p` to enforce folder creation before sync")
     ap.add_argument("--delete", action='store_true', help="delete")
-    ap.add_argument('-e', '--exclude', nargs='*', action='append', default = ['.git', '.state' ], help='exclude PATTERN')
+    ap.add_argument('-e', '--exclude', nargs='*', action='extend', default = ['.git', '.state' ], help='exclude PATTERN')
     args = vars(ap.parse_args())
     print(args)
 
