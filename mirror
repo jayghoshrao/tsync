@@ -120,6 +120,7 @@ def main():
     ap.add_argument("-m", "--mkdir", action='store_true', help="Run `mkdir -p` to enforce folder creation before sync")
     ap.add_argument("--delete", action='store_true', help="delete")
     ap.add_argument('-e', '--exclude', nargs='*', action='extend', default = ['.git', '.state' ], help='exclude PATTERN')
+    ap.add_argument("--delete-excluded", action='store_true', help="delete excluded files as well")
     args = vars(ap.parse_args())
     print(args)
 
@@ -127,10 +128,15 @@ def main():
         PRECMDLIST.append('--delete')
 
     for item in args['exclude']: 
+        print(f"NOTE: excluding {item}")
         PRECMDLIST.append(f"--exclude={item}")
+
+    if args['delete_excluded']:
+        PRECMDLIST.append(f"--delete-excluded")
 
     if args['dry_run']:
         PRECMDLIST.append(f"--dry-run")
+
 
     # TODO: Remove global
     global root
