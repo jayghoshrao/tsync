@@ -19,14 +19,17 @@ WARNINGS:
 """
 
 # TODO: Set choices for --target --source from remotes.keys()
-# TODO: Allow diffing
+# TODO: Allow diffing with remotes
 # TODO: Find all .mirror files in all parents and mash them together. Closest file should override farthest file.
+# TODO: Allow specifying excludes in .mirrors
+# TODO: YAML .mirrors
 
 import os
 import sys
 import argparse
 import subprocess
 from rich import print
+from rich.pretty import pprint
 
 from pathlib import Path
 
@@ -96,7 +99,7 @@ def push(files, targets, remotes, mkdir=False):
 def pull(files, source, remotes):
     if source in remotes:
         cmdlist = PRECMDLIST[:]
-        if files != []:
+        if files != [] and files is not None:
             for file in files:
                 cmdlist.append(str(Path(remotes[source]) / Path('.').resolve().relative_to(str(root)) / file ))
         else: 
@@ -107,35 +110,35 @@ def pull(files, source, remotes):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('files', nargs='*', help='files or directories to sync')
 
-    meg = ap.add_mutually_exclusive_group()
-    meg.add_argument("-t", "--target", nargs='*', help="target servers")
-    meg.add_argument("-s", "--source", help="source server")
+    # meg = ap.add_mutually_exclusive_group()
+    # meg.add_argument("-t", "--target", nargs='*', help="target servers")
+    # meg.add_argument("-s", "--source", help="source server")
+
+    subparsers = ap.add_subparsers()
+
+    sub_push = subparsers.add_parser('push', help='PUSH to multiple sources')
+    sub_push.add_argument('target', nargs='*', help="target servers")
+    sub_push.add_argument('-f', '--files', nargs='*', help='files or directories to sync')
+    sub_push.add_argument('-e', '--exclude', nargs='*', action='extend', default = ['.git', '.state' ], help='exclude PATTERN')
+
+    sub_pull = subparsers.add_parser('pull', help='pull from ONE source')
+    sub_pull.add_argument('source', help="target servers")
+    sub_pull.add_argument('-f', '--files', nargs='*', help='files or directories to sync')
+    sub_pull.add_argument('-e', '--exclude', nargs='*', action='extend', default = ['.git', '.state' ], help='exclude PATTERN')
+
+    sub_list = subparsers.add_parser('list', help='list remotes found in .mirrors file')
+    sub_list.add_argument('list', action='store_true', default=False)
 
     # TODO: This might get in the way of how relative paths are handled. Needs CAREFUL testing
     ap.add_argument("-r", "--remote", nargs=2, action='append', help="Don't use .mirrors file, use this specified remote")
-
     ap.add_argument("-d", "--dry-run", action='store_true', help="Only show which commands will run")
     ap.add_argument("-m", "--mkdir", action='store_true', help="Run `mkdir -p` to enforce folder creation before sync")
     ap.add_argument("--delete", action='store_true', help="delete")
-    ap.add_argument('-e', '--exclude', nargs='*', action='extend', default = ['.git', '.state' ], help='exclude PATTERN')
     ap.add_argument("--delete-excluded", action='store_true', help="delete excluded files as well")
+
     args = vars(ap.parse_args())
-    print(args)
-
-    if args['delete']:
-        PRECMDLIST.append('--delete')
-
-    for item in args['exclude']: 
-        print(f"NOTE: excluding {item}")
-        PRECMDLIST.append(f"--exclude={item}")
-
-    if args['delete_excluded']:
-        PRECMDLIST.append(f"--delete-excluded")
-
-    if args['dry_run']:
-        PRECMDLIST.append(f"--dry-run")
+    pprint(args, expand_all=True)
 
 
     # TODO: Remove global
@@ -156,17 +159,31 @@ def main():
     # if not args['files']:
     #     args['files'] = ['.']
 
-    if args['target']: 
+    if args.get('list'):
+        pprint(remote, expand_all=True)
+
+    if args['delete']:
+        PRECMDLIST.append('--delete')
+
+    if args['delete_excluded']:
+        PRECMDLIST.append(f"--delete-excluded")
+
+    if args['dry_run']:
+        PRECMDLIST.append(f"--dry-run")
+
+    if args.get('source') or args.get('target'): 
+        for item in args['exclude']: 
+            print(f"NOTE: excluding {item}")
+            PRECMDLIST.append(f"--exclude={item}")
+
+    if args.get('target'): 
         warn = input(f"PUSH to {args['target']}? (y/Y/ENTER to continue)")
         if warn.lower() == 'y' or warn == '': 
             push(args['files'], args['target'], remote, mkdir=args['mkdir'])
-    elif args['source']:
+    elif args.get('source'):
         warn = input(f"PULL from {args['source']}? (y/Y/ENTER to continue)")
         if warn.lower() == 'y' or warn == '': 
             pull(args['files'], args['source'], remote)
-    else:
-        raise RuntimeError("No source/target provided!")
-        
 
 if __name__ == "__main__":
     main()
