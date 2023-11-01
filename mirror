@@ -31,7 +31,10 @@ import subprocess
 from rich import print
 from rich.pretty import pprint
 
+from ruamel.yaml import YAML
 from pathlib import Path
+
+yaml = YAML(typ='safe')
 
 PRECMD="rsync -avzhP"
 PRECMDLIST = PRECMD.split()
@@ -42,6 +45,29 @@ def findup(name, path:Path):
         if name in files:
             return path 
         path = path.parent
+
+## NOTE: Unsure if it's necessary to have a cumulatively patched ini file. 
+## Why would we need this functionality if we could just create one at the root and use that?
+## Do we just use the first encountered .mirrors file as root? 
+## we would need cumulative patching if we have more than just remotes in the config files, such as excludes etc. We then only specify the excludes in the current folder? Per subfolder excludes
+# def parse_ini_cumulatively(name, path:Path):
+#     remotes = {}
+#     paths = []
+#     while str(path) != '/':
+#         files = [ p.name for p in path.glob('*') if p.is_file() ]
+#         if name in files:
+#             remotes.update(readINI(path / name))
+#             paths.append(path)
+#         path = path.parent
+#     return path[0]
+
+def find_and_parse(filename=".mirrors.yaml", parser=yaml.load):
+    cwd = Path().resolve()
+    root = findup(filename, cwd)
+    if root is not None:
+        print("found root: ", root)
+        return parser(root / filename)
+    return {}
 
 def find_files(ignore_files=[], ignore_dirs=['.git']):
     # return [ p for p in Path('.').rglob('*') if p.is_file() and STATEDIR not in p.parents]
