@@ -8,9 +8,9 @@ MIRROR/MIR (rewritten)
     - example: jureca jureca12:/p/project/cjibg12/scratch
 
 USAGE: 
-    `mir -t TARGETS...-d`
-    `mir -t TARGETS...`
-    `mir -s SOURCE`
+    `mir push TARGETS...-d`
+    `mir push TARGETS...`
+    `mir pull SOURCE`
     `mir FILES... -t TARGETS...`
 
 WARNINGS:
@@ -18,9 +18,9 @@ WARNINGS:
     - .git folder is currently ignored by default
 """
 
-# TODO: Set choices for --target --source from remotes.keys()
-# TODO: Allow diffing with remotes
 # TODO: Find all .mirror files in all parents and mash them together. Closest file should override farthest file.
+# TODO: Set autocompletable choices for sources and targets from remotes.keys()
+# TODO: Allow diffing with remotes
 # TODO: Allow specifying excludes in .mirrors
 # TODO: YAML .mirrors
 
@@ -70,7 +70,7 @@ def readINI(filestring):
 
     return dictionary
 
-def push(files, targets, remotes, mkdir=False):
+def push(files, targets, remotes, root, mkdir=False):
     PRECMDLIST.append('--relative')
     if targets == ['all']:
         targets = [ x for x in remotes ]
@@ -96,7 +96,7 @@ def push(files, targets, remotes, mkdir=False):
         else:
             raise RuntimeError(f"Remote {target} not found. Please check {root}/.mirrors.")
 
-def pull(files, source, remotes):
+def pull(files, source, remotes, root):
     if source in remotes:
         cmdlist = PRECMDLIST[:]
         if files != [] and files is not None:
@@ -140,9 +140,6 @@ def main():
     args = vars(ap.parse_args())
     pprint(args, expand_all=True)
 
-
-    # TODO: Remove global
-    global root
     cwd = Path().resolve()
     if args['remote']: 
         remote = {k:v for k,v in args['remote']}
@@ -179,11 +176,11 @@ def main():
     if args.get('target'): 
         warn = input(f"PUSH to {args['target']}? (y/Y/ENTER to continue)")
         if warn.lower() == 'y' or warn == '': 
-            push(args['files'], args['target'], remote, mkdir=args['mkdir'])
+            push(args['files'], args['target'], remote, root, mkdir=args['mkdir'])
     elif args.get('source'):
         warn = input(f"PULL from {args['source']}? (y/Y/ENTER to continue)")
         if warn.lower() == 'y' or warn == '': 
-            pull(args['files'], args['source'], remote)
+            pull(args['files'], args['source'], remote, root)
 
 if __name__ == "__main__":
     main()
