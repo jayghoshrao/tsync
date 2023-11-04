@@ -21,8 +21,6 @@ WARNINGS:
 # TODO: Find all .mirror files in all parents and mash them together. Closest file should override farthest file.
 # TODO: Set autocompletable choices for sources and targets from remotes.keys()
 # TODO: Allow diffing with remotes
-# TODO: Allow specifying excludes in .mirrors
-# TODO: YAML .mirrors
 
 import os
 import sys
@@ -30,14 +28,37 @@ import argparse
 import subprocess
 from rich import print
 from rich.pretty import pprint
-
 from ruamel.yaml import YAML
 from pathlib import Path
+from addict import Dict
+from dataclasses import dataclass, field
 
 yaml = YAML(typ='safe')
 
 PRECMD="rsync -avzhP"
 PRECMDLIST = PRECMD.split()
+
+@dataclass
+class Config:
+    remotes: dict[str,str] = field(default_factory=dict)
+    files: list[str] = field(default_factory=list)
+    excludes: list[str] = field(default_factory=list) 
+    mode: str = field(default_factory=str)
+    dry_run: bool = False
+    mkdir: bool = False
+    delete: bool = False
+    delete_excluded: bool = False
+
+    def update(self, in_dict):
+        for key in self.__dataclass_fields__: 
+            if not in_dict.get(key):
+                continue
+            elif isinstance(self.__dict__[key], list):
+                self.__dict__[key]= list(set(self.__dict__[key] + in_dict.get(key)))
+            elif isinstance(self.__dict__[key], dict):
+                self.__dict__[key].update(in_dict.get('remotes', {}))
+            else:
+                self.__dict__[key] = in_dict.get(key)
 
 def findup(name, path:Path):
     while str(path) != '/':
@@ -66,8 +87,8 @@ def find_and_parse(filename=".mirrors.yaml", parser=yaml.load):
     root = findup(filename, cwd)
     if root is not None:
         print("found root: ", root)
-        return parser(root / filename)
-    return {}
+        return root, parser(root / filename)
+    return None, {}
 
 def find_files(ignore_files=[], ignore_dirs=['.git']):
     # return [ p for p in Path('.').rglob('*') if p.is_file() and STATEDIR not in p.parents]
@@ -141,72 +162,82 @@ def main():
     # meg.add_argument("-t", "--target", nargs='*', help="target servers")
     # meg.add_argument("-s", "--source", help="source server")
 
-    subparsers = ap.add_subparsers()
+    subparsers = ap.add_subparsers(dest='mode')
 
     sub_push = subparsers.add_parser('push', help='PUSH to multiple sources')
     sub_push.add_argument('target', nargs='*', help="target servers")
     sub_push.add_argument('-f', '--files', nargs='*', help='files or directories to sync')
-    sub_push.add_argument('-e', '--exclude', nargs='*', action='extend', default = ['.git', '.state' ], help='exclude PATTERN')
+    sub_push.add_argument('-e', '--excludes', nargs='*', action='extend', default = ['.git', '.state' ], help='exclude PATTERN')
 
     sub_pull = subparsers.add_parser('pull', help='pull from ONE source')
     sub_pull.add_argument('source', help="target servers")
     sub_pull.add_argument('-f', '--files', nargs='*', help='files or directories to sync')
-    sub_pull.add_argument('-e', '--exclude', nargs='*', action='extend', default = ['.git', '.state' ], help='exclude PATTERN')
+    sub_pull.add_argument('-e', '--excludes', nargs='*', action='extend', default = ['.git', '.state' ], help='exclude PATTERN')
 
-    sub_list = subparsers.add_parser('list', help='list remotes found in .mirrors file')
-    sub_list.add_argument('list', action='store_true', default=False)
+    sub_diff= subparsers.add_parser('diff', help='list remotes found in .mirrors file')
+    sub_diff.add_argument('diff', help="target servers")
 
     # TODO: This might get in the way of how relative paths are handled. Needs CAREFUL testing
+    # TODO: implement -r without key, just value of remote, always use a dummy key 
     ap.add_argument("-r", "--remote", nargs=2, action='append', help="Don't use .mirrors file, use this specified remote")
+
     ap.add_argument("-d", "--dry-run", action='store_true', help="Only show which commands will run")
     ap.add_argument("-m", "--mkdir", action='store_true', help="Run `mkdir -p` to enforce folder creation before sync")
     ap.add_argument("--delete", action='store_true', help="delete")
     ap.add_argument("--delete-excluded", action='store_true', help="delete excluded files as well")
 
     args = vars(ap.parse_args())
-    pprint(args, expand_all=True)
+
+    config = Config()
+    config.update(args)
 
     cwd = Path().resolve()
     if args['remote']: 
-        remote = {k:v for k,v in args['remote']}
+        config.remotes = {k:v for k,v in args['remote']}
         root = cwd
-    else: 
-        root = findup(".mirrors", cwd)
-        if root is None:
-            print("No .mirrors found in current or parent directories.")
-            sys.exit()
-        print("found root: ", root)
-        inifile = root / ".mirrors"
-        remote = readINI(inifile)
+    else:
+        root, config_yaml = find_and_parse('.mirrors.yaml', yaml.load)
+        if config_yaml:
+            config.update(config_yaml)
+        else:
+            root, remotes_ini = find_and_parse('.mirrors', readINI)
+            if remotes_ini:
+                config.remotes.update(remotes_ini)
+
+    pprint(config, expand_all=True)
+
+    if not config.mode:
+        return
 
     # if not args['files']:
     #     args['files'] = ['.']
 
-    if args.get('list'):
-        pprint(remote, expand_all=True)
-
-    if args['delete']:
+    if config.delete:
         PRECMDLIST.append('--delete')
 
-    if args['delete_excluded']:
+    if config.delete_excluded:
         PRECMDLIST.append(f"--delete-excluded")
 
-    if args['dry_run']:
+    if config.dry_run:
         PRECMDLIST.append(f"--dry-run")
 
     if args.get('source') or args.get('target'): 
-        for item in args['exclude']: 
-            print(f"NOTE: excluding {item}")
+        for item in config.excludes: 
             PRECMDLIST.append(f"--exclude={item}")
 
-    if args.get('target'): 
+    if config.mode == 'push' and args.get('target'): 
         warn = input(f"PUSH to {args['target']}? (y/Y/ENTER to continue)")
         if warn.lower() == 'y' or warn == '': 
-            push(args['files'], args['target'], remote, root, mkdir=args['mkdir'])
-    elif args.get('source'):
+            push(config.files, args['target'], config.remotes, root, mkdir=config.mkdir)
+    elif config.mode == 'pull' and args.get('source'):
         warn = input(f"PULL from {args['source']}? (y/Y/ENTER to continue)")
         if warn.lower() == 'y' or warn == '': 
-            pull(args['files'], args['source'], remote, root)
+            pull(config.files, args['source'], config.remotes, root)
+    elif config.mode == 'diff':
+        pass
+        # Get full paths of dirs
+        # Find a difflib
+
 
 if __name__ == "__main__":
     main()
