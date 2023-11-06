@@ -179,21 +179,25 @@ def main():
 
     # TODO: This might get in the way of how relative paths are handled. Needs CAREFUL testing
     # TODO: implement -r without key, just value of remote, always use a dummy key 
-    ap.add_argument("-r", "--remote", nargs=2, action='append', help="Don't use .mirrors file, use this specified remote")
+    ap.add_argument("-r", "--remote", help="Don't use .mirrors file, use this specified remote location")
 
     ap.add_argument("-d", "--dry-run", action='store_true', help="Only show which commands will run")
     ap.add_argument("-m", "--mkdir", action='store_true', help="Run `mkdir -p` to enforce folder creation before sync")
     ap.add_argument("--delete", action='store_true', help="delete")
     ap.add_argument("--delete-excluded", action='store_true', help="delete excluded files as well")
 
-    args = vars(ap.parse_args())
+    args = Dict(vars(ap.parse_args()))
 
     config = Config()
     config.update(args)
 
     cwd = Path().resolve()
     if args['remote']: 
-        config.remotes = {k:v for k,v in args['remote']}
+        config.remotes = {'args_remote': args['remote']}
+        if config.mode == 'push':
+            args.target = [ 'args_remote' ]
+        elif config.mode == 'pull':
+            args.source = 'args_remote'
         root = cwd
     else:
         root, config_yaml = find_and_parse('.mirrors.yaml', yaml.load)
