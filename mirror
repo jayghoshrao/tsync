@@ -199,13 +199,10 @@ def main():
             args.source = 'args_remote'
         root = cwd
     else:
-        root, config_yaml = find_and_parse('.mirrors.yaml', yaml.load)
+        root_yaml, config_yaml = find_and_parse('.mirrors.yaml', yaml.load)
         if config_yaml:
             config.update(config_yaml)
-        else:
-            root, remotes_ini = find_and_parse('.mirrors', readINI)
-            if remotes_ini:
-                config.remotes.update(remotes_ini)
+            root = root_yaml
 
     pprint(config, expand_all=True)
 
@@ -229,10 +226,12 @@ def main():
             PRECMDLIST.append(f"--exclude={item}")
 
     if config.mode == 'push' and args.get('target'): 
+        assert all(t in config.remotes.keys() for t in args['target'])
         warn = input(f"PUSH to {args['target']}? (y/Y/ENTER to continue)")
         if warn.lower() == 'y' or warn == '': 
             push(config.files, args['target'], config.remotes, root, mkdir=config.mkdir)
     elif config.mode == 'pull' and args.get('source'):
+        assert args['source'] in config.remotes.keys()
         warn = input(f"PULL from {args['source']}? (y/Y/ENTER to continue)")
         if warn.lower() == 'y' or warn == '': 
             pull(config.files, args['source'], config.remotes, root)
