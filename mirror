@@ -23,6 +23,7 @@ WARNINGS:
 
 import os
 import sys
+import time
 import argparse
 import subprocess
 from rich import print
@@ -176,6 +177,8 @@ def main():
     sub_diff= subparsers.add_parser('diff', help='list remotes found in .mirrors file')
     sub_diff.add_argument('diff', help="target servers")
 
+    sub_edit= subparsers.add_parser('edit', help='list remotes found in .mirrors file')
+
     # TODO: This might get in the way of how relative paths are handled. Needs CAREFUL testing
     # TODO: implement -r without key, just value of remote, always use a dummy key 
     ap.add_argument("-r", "--remote", help="Don't use .mirrors file, use this specified remote location")
@@ -243,7 +246,11 @@ def main():
         pass
         # Get full paths of dirs
         # Find a difflib
-
+    elif config.mode == 'edit':
+        editor = os.environ.get('EDITOR', 'vi')
+        print(f"Opening config file: {root / '.mirrors.yaml'}")
+        time.sleep(1)
+        subprocess.run([editor, root / '.mirrors.yaml'])
 
 if __name__ == "__main__":
     main()
