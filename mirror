@@ -190,6 +190,7 @@ def main():
     config = Config()
     config.update(args)
 
+    root = None
     cwd = Path().resolve()
     if args['remote']: 
         config.remotes = {'args_remote': args['remote']}
@@ -204,7 +205,10 @@ def main():
             config.update(config_yaml)
             root = root_yaml
 
-    pprint(config, expand_all=True)
+    if root:
+        pprint(config, expand_all=True)
+    else:
+        return
 
     if not config.mode:
         return
