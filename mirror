@@ -30,7 +30,7 @@ from rich import print
 from rich.pretty import pprint
 from ruamel.yaml import YAML
 from pathlib import Path
-from addict import Dict
+# from addict import Dict
 from dataclasses import dataclass, field
 
 yaml = YAML(typ='safe')
@@ -188,7 +188,7 @@ def main():
     ap.add_argument("--delete", action='store_true', help="delete")
     ap.add_argument("--delete-excluded", action='store_true', help="delete excluded files as well")
 
-    args = Dict(vars(ap.parse_args()))
+    args = vars(ap.parse_args())
 
     config = Config()
     config.update(args)
@@ -198,9 +198,9 @@ def main():
     if args['remote']: 
         config.remotes = {'args_remote': args['remote']}
         if config.mode == 'push':
-            args.target = [ 'args_remote' ]
+            args['target'] = [ 'args_remote' ]
         elif config.mode == 'pull':
-            args.source = 'args_remote'
+            args['source'] = 'args_remote'
         root = cwd
     else:
         root_yaml, config_yaml = find_and_parse('.mirrors.yaml', yaml.load)
