@@ -185,7 +185,7 @@ def main():
 
     ap.add_argument("-d", "--dry-run", action='store_true', help="Only show which commands will run")
     ap.add_argument("-m", "--mkdir", action='store_true', help="Run `mkdir -p` to enforce folder creation before sync")
-    ap.add_argument("--delete", action='store_true', help="delete")
+    ap.add_argument("--delete", action='store_true', help="delete extraneous files on the receiver. Only works when syncing dirs, not individual files")
     ap.add_argument("--delete-excluded", action='store_true', help="delete excluded files as well")
 
     args = vars(ap.parse_args())
