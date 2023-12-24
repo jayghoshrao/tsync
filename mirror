@@ -188,7 +188,9 @@ def main():
     ap.add_argument("--delete", action='store_true', help="delete extraneous files on the receiver. Only works when syncing dirs, not individual files")
     ap.add_argument("--delete-excluded", action='store_true', help="delete excluded files as well")
 
-    args = vars(ap.parse_args())
+    ## Multi-pass parsing to allow arbitrary ordering of subparser and parser commandline args
+    args = ap.parse_known_args()
+    args = vars(ap.parse_args(args[1], args[0]))
 
     config = Config()
     config.update(args)
