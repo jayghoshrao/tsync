@@ -155,6 +155,17 @@ def pull(files, source, remotes, root):
         print(cmdlist)
         subprocess.run(cmdlist)
 
+def run_command(cmdlist: list[str], capture_output=False):
+    print(cmdlist)
+    result = subprocess.run(cmdlist, capture_output=capture_output, text=True)
+    # print(result.stdout)
+    # if result.returncode != 0:
+    #     print(result.stderr)
+
+def run_ssh_command(remote:str, command:str, dir:str|Path):
+    cmd = ['ssh', remote, f"cd {Path(dir).as_posix()} && {command}" ]
+    run_command(cmd)
+
 def main():
     ap = argparse.ArgumentParser()
 
@@ -173,6 +184,10 @@ def main():
     sub_pull.add_argument('source', nargs='?', help="target servers")
     sub_pull.add_argument('-f', '--files', nargs='*', help='files or directories to sync')
     sub_pull.add_argument('-e', '--excludes', nargs='*', action='extend', default = ['.git', '.state' ], help='exclude PATTERN')
+
+    sub_cmd = subparsers.add_parser('cmd', help='Run command on remote in corresponding directory')
+    sub_cmd.add_argument('command', nargs='*', help='Command to execute')
+    sub_cmd.add_argument('--target', nargs='*', help='Command to execute')
 
     sub_diff= subparsers.add_parser('diff', help='list remotes found in .mirrors file')
     sub_diff.add_argument('diff', help="target servers")
@@ -253,6 +268,15 @@ def main():
         print(f"Opening config file: {root / '.mirrors.yaml'}")
         time.sleep(1)
         subprocess.run([editor, root / '.mirrors.yaml'])
+    elif config.mode == 'cmd':
+        assert all(t in config.remotes.keys() for t in args['target'])
+        for target in args['target']:
+            remotedir= str(Path(config.remotes[target]) / Path('.').resolve().relative_to(str(root)) ) + os.sep
+            if ':' in remotedir:
+                remote, dir = remotedir.split(':')
+                run_ssh_command(remote, ' '.join(args['command']), dir)
+            else:
+                run_command(args['command'])
 
 if __name__ == "__main__":
     main()
