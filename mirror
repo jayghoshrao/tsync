@@ -161,10 +161,12 @@ def run_command(cmdlist: list[str], capture_output=False):
     # print(result.stdout)
     # if result.returncode != 0:
     #     print(result.stderr)
+    return result
 
 def run_ssh_command(remote:str, command:str, dir:str|Path):
     cmd = ['ssh', remote, f"cd {Path(dir).as_posix()} && {command}" ]
-    run_command(cmd)
+    result = run_command(cmd)
+    return result
 
 def main():
     ap = argparse.ArgumentParser()
@@ -275,9 +277,11 @@ def main():
             remotedir= str(Path(config.remotes[target]) / Path('.').resolve().relative_to(str(root)) ) + os.sep
             if ':' in remotedir:
                 remote, dir = remotedir.split(':')
-                run_ssh_command(remote, ' '.join(args['command']), dir)
+                res = run_ssh_command(remote, ' '.join(args['command']), dir)
+                sys.exit(res.returncode)
             else:
-                run_command(args['command'])
+                res = run_command(args['command'])
+                sys.exit(res.returncode)
 
 if __name__ == "__main__":
     main()
