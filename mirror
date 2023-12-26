@@ -163,7 +163,7 @@ def run_command(cmdlist: list[str], capture_output=False):
     #     print(result.stderr)
     return result
 
-def run_ssh_command(remote:str, command:str, dir:str|Path):
+def run_ssh_command(remote:str, command:str, dir):
     cmd = ['ssh', remote, f"cd {Path(dir).as_posix()} && {command}" ]
     result = run_command(cmd)
     return result
