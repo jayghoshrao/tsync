@@ -35,7 +35,7 @@ from dataclasses import dataclass, field
 
 yaml = YAML(typ='safe')
 
-PRECMD="rsync -avzhP"
+PRECMD="rsync -avzhPr"
 PRECMDLIST = PRECMD.split()
 
 @dataclass
@@ -148,8 +148,10 @@ def pull(files, source, remotes, root):
     if source in remotes:
         cmdlist = PRECMDLIST[:]
         if files != [] and files is not None:
+            PRECMDLIST.append('--relative')
             for file in files:
-                cmdlist.append(str(Path(remotes[source]) / Path('.').resolve().relative_to(str(root)) / file ))
+                # The additional dot in the source paths ensures that we pull directory structure relative to current directory.
+                cmdlist.append(str(Path(remotes[source]).as_posix() / Path('.').resolve().relative_to(str(root))) + '/./' + file )
         else: 
             cmdlist.append(str(Path(remotes[source]) / Path('.').resolve().relative_to(str(root))) + os.sep)
         cmdlist.append('.')
