@@ -216,8 +216,9 @@ def main():
     ap.add_argument("--delete-excluded", action='store_true', help="delete excluded files as well")
 
     ## Multi-pass parsing to allow arbitrary ordering of subparser and parser commandline args
-    args = ap.parse_known_args()
-    args = vars(ap.parse_args(args[1], args[0]))
+    args, extra_args_list = ap.parse_known_args()
+    args, extra_args_list = ap.parse_known_args(extra_args_list, args)
+    args = vars(args)
 
     config = Config()
     config.update(args)
@@ -247,6 +248,8 @@ def main():
 
     # if not args['files']:
     #     args['files'] = ['.']
+
+    PRECMDLIST.extend(extra_args_list)
 
     if config.delete:
         PRECMDLIST.append('--delete')
