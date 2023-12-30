@@ -142,6 +142,7 @@ def push(files, targets, remotes, root, mkdir=False):
                 subprocess.run(mkdir_cmd.split())
 
             print(cmdlist)
+            print(" ".join(cmdlist))
             subprocess.run(cmdlist)
         else:
             raise RuntimeError(f"Remote {target} not found. Please check {root}/.mirrors.")
@@ -158,6 +159,7 @@ def pull(files, source, remotes, root):
             cmdlist.append(str(Path(remotes[source]) / Path('.').resolve().relative_to(str(root))) + os.sep)
         cmdlist.append('.')
         print(cmdlist)
+        print(" ".join(cmdlist))
         subprocess.run(cmdlist)
 
 def run_command(cmdlist: list[str], capture_output=False):
