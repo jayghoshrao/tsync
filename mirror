@@ -20,6 +20,8 @@ WARNINGS:
 # TODO: Set autocompletable choices for sources and targets from remotes.keys()
 # TODO: Allow diffing with remotes
 # TODO: Allow setting root folder via args
+# TODO: mirror list <remote> should list current dir on remote
+# TODO: mirror tree <remote> should list current tree on remote
 
 import os
 import sys
