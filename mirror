@@ -258,10 +258,10 @@ def main():
         PRECMDLIST.append(f"--dry-run")
 
     if args.get('source') or args.get('target'): 
-        for item in config.excludes: 
-            PRECMDLIST.append(f"--exclude={item}")
         for item in config.includes: 
             PRECMDLIST.append(f"--include={item}")
+        for item in config.excludes: 
+            PRECMDLIST.append(f"--exclude={item}")
 
     if config.mode == 'push' and args.get('target'): 
         assert all(t in config.remotes.keys() for t in args['target'])
