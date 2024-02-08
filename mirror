@@ -209,6 +209,7 @@ def main():
     # TODO: implement -r without key, just value of remote, always use a dummy key 
     ap.add_argument("-r", "--remote", help="Don't use .mirrors file, use this specified remote location")
 
+    ap.add_argument('-ne', '--no-excludes', action='store_true', default=False, help='Ignore excludes')
     ap.add_argument("-y", "--no-confirm", action='store_true', help="Don't prompt before syncing data")
     ap.add_argument("-d", "--dry-run", action='store_true', help="Only show which commands will run")
     ap.add_argument("-m", "--mkdir", action='store_true', help="Run `mkdir -p` to enforce folder creation before sync")
@@ -260,11 +261,12 @@ def main():
     if config.dry_run:
         PRECMDLIST.append(f"--dry-run")
 
-    if args.get('source') or args.get('target'): 
-        for item in config.includes: 
-            PRECMDLIST.append(f"--include={item}")
-        for item in config.excludes: 
-            PRECMDLIST.append(f"--exclude={item}")
+    if not args.get('no_excludes'):
+        if args.get('source') or args.get('target'): 
+            for item in config.includes: 
+                PRECMDLIST.append(f"--include={item}")
+            for item in config.excludes: 
+                PRECMDLIST.append(f"--exclude={item}")
 
     if config.mode == 'push' and args.get('target'): 
         assert all(t in config.remotes.keys() for t in args['target'])
