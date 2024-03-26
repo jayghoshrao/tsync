@@ -23,6 +23,13 @@ WARNINGS:
 # TODO: mirror list <remote> should list current dir on remote
 # TODO: mirror tree <remote> should list current tree on remote
 
+## On diffing
+# - Not that easy w.r.t. getting an exact diff for all files since we would have to perform a comparison across ssh => transfer data.
+# - Maybe first perform a checksum tree for the dirs, transmit the file and compare locally. Then for the files with mismatched checksums, transmit them and see diffs.
+# - But this still involves performing an operation on the remote: finding checksums of all files. How does rsync do this?
+# - rsync -avncr --out-format="%C %f" /remote/dir-changed/ reference/dir/ 
+#     - So with rsync, we just run it twice: get list of changed checksums, check it against an exclude filter (for object files .o), and sync these to a local dir and perform my local diff.
+
 import os
 import sys
 import time
