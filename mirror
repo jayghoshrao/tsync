@@ -22,6 +22,7 @@ WARNINGS:
 # TODO: Allow setting root folder via args
 # TODO: mirror list <remote> should list current dir on remote
 # TODO: mirror tree <remote> should list current tree on remote
+# TODO: mirror log should show list of push/pull
 
 ## On diffing
 # - Not that easy w.r.t. getting an exact diff for all files since we would have to perform a comparison across ssh => transfer data.
