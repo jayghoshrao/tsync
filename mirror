@@ -24,6 +24,11 @@ WARNINGS:
 # TODO: mirror tree <remote> should list current tree on remote
 # TODO: mirror log should show list of push/pull. Can place it in the dir of the yaml file. Can keep it in default excludes.
 
+# TODO: Handle UUID:path for mountable disks
+# remote_name: <qualifier>:<remote_root_path> or <remote_root_path>
+# qualifier can be 'ssh' or a given UUID
+# When UUID is given it should mount the drive and resolve the new path automatically.
+
 ## On diffing
 # - Not that easy w.r.t. getting an exact diff for all files since we would have to perform a comparison across ssh => transfer data.
 # - Maybe first perform a checksum tree for the dirs, transmit the file and compare locally. Then for the files with mismatched checksums, transmit them and see diffs.
@@ -40,8 +45,14 @@ from rich import print
 from rich.pretty import pprint
 from ruamel.yaml import YAML
 from pathlib import Path
-# from addict import Dict
 from dataclasses import dataclass, field
+
+from importlib.util import spec_from_loader, module_from_spec
+from importlib.machinery import SourceFileLoader 
+
+spec = spec_from_loader("diskutils", SourceFileLoader("diskutils", Path('/home/jayghoshter/bin/diskutils.py').expanduser().as_posix() ))
+diskutils = module_from_spec(spec)
+spec.loader.exec_module(diskutils)
 
 yaml = YAML(typ='safe')
 
@@ -128,6 +139,43 @@ def readINI(filestring):
 
     return dictionary
 
+def is_elevated():
+    return os.getuid() == 0
+
+def rerun_in_elevated_subshell():
+    print("Restarting in elevated subshell")
+    runner = os.path.abspath(sys.executable)
+    arguments = [os.path.abspath(sys.argv[0])] + sys.argv[1:]
+    command = [ "sudo", runner ] + arguments
+    out = subprocess.run(command)
+    sys.exit(out.returncode)
+
+def resolve_remote(remotestr:str):
+    """
+    remote_name: <qualifier>:<remote_root_path> OR <remote_root_path>
+    <qualifier> can be an ssh remote or a disk UUID. If it is a UUID, we 
+    mount the disk and resolve the full path. ssh remote qualifiers are 
+    allowed to passthrough as rsync handles them internally.
+    """
+    if ':' in remotestr:
+        qualifier, remote_root_path = remotestr.split(':')
+        devname = diskutils.find_disk_by_uuid(qualifier)
+        if devname:
+            mountpoint = diskutils.get_mountpoint(devname)
+            if mountpoint:
+                return (Path(mountpoint) / remote_root_path).as_posix()
+
+            if is_elevated():
+                return (Path(diskutils.mount(devname)) / remote_root_path).as_posix()
+            else:
+                rerun_in_elevated_subshell()
+    
+
+    # TODO: Check if qualifiers are valid ssh remotes
+
+    return remotestr
+
+
 def push(files, targets, remotes, root, mkdir=False):
     PRECMDLIST.append('--relative')
     if targets == ['all']:
@@ -140,7 +188,8 @@ def push(files, targets, remotes, root, mkdir=False):
                     cmdlist.append(file)
             else:
                 cmdlist.append('.')
-            cmdlist.append(str(Path(remotes[target]) / Path('.').resolve().relative_to(str(root)) ) + os.sep)
+            remote_path = str(Path(remotes[target]) / Path('.').resolve().relative_to(str(root)) ) + os.sep
+            cmdlist.append(remote_path)
 
             if mkdir: 
                 mkdir_cmd = f'mkdir -p { str(Path(remotes[target])).split(":")[-1] / Path(".").resolve().relative_to(str(root))}{os.sep}'
@@ -195,7 +244,7 @@ def main():
     sub_push = subparsers.add_parser('push', help='PUSH to multiple sources')
     sub_push.add_argument('target', nargs='*', help="target servers")
     sub_push.add_argument('-f', '--files', nargs='*', help='files or directories to sync')
-    sub_push.add_argument('-e', '--excludes', nargs='*', action='extend', default = ['.git', '.state', '.mypy_cache', '__pycache__' ], help='exclude PATTERN')
+    sub_push.add_argument('-e', '--excludes', nargs='*', action='extend', default = ['.git', '.mypy_cache', '__pycache__' ], help='exclude PATTERN')
     sub_push.add_argument('-i', '--includes', nargs='*', action='extend', default = [], help='include PATTERN. Do not exclude these files.')
 
     sub_pull = subparsers.add_parser('pull', help='pull from ONE source')
@@ -247,6 +296,11 @@ def main():
             config.update(config_yaml)
             root = root_yaml
 
+    if config.remotes:
+        for tag, remote_path in config.remotes.items():
+            if tag in args.get('target', []):
+                config.remotes[tag] = resolve_remote(remote_path)
+
     if root:
         pprint(config, expand_all=True)
     else:
@@ -269,6 +323,7 @@ def main():
     if config.dry_run:
         PRECMDLIST.append(f"--dry-run")
 
+    # NOTE: Include must come before exclude. Order matters somehow.
     if not args.get('no_excludes'):
         if args.get('source') or args.get('target'): 
             for item in config.includes: 
