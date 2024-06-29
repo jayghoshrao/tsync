@@ -56,11 +56,8 @@ spec.loader.exec_module(diskutils)
 
 yaml = YAML(typ='safe')
 
-# COMMAND='rsync'
-# ARGS=['']
-
-PRECMD="rsync -avzhPr"
-PRECMDLIST = PRECMD.split()
+SYNC_COMMAND='rsync'
+SYNC_ARGS=['-avzhPr']
 
 @dataclass
 class Config:
@@ -175,47 +172,43 @@ def resolve_remote(remotestr:str):
 
 
 def push(files, targets, remotes, root, mkdir=False):
-    PRECMDLIST.append('--relative')
+    SYNC_ARGS.append('--relative')
     if targets == ['all']:
         targets = [ x for x in remotes ]
     for target in targets:
         if target in remotes:
-            cmdlist = PRECMDLIST[:]
+            sync_args_local = SYNC_ARGS[:]
             if files:
                 for file in files:
-                    cmdlist.append(file)
+                    sync_args_local.append(file)
             else:
-                cmdlist.append('.')
+                sync_args_local.append('.')
+
             remote_path = str(Path(remotes[target]) / Path('.').resolve().relative_to(str(root)) ) + os.sep
-            cmdlist.append(remote_path)
+            sync_args_local.append(remote_path)
 
             if mkdir: 
                 mkdir_cmd = f'mkdir -p { str(Path(remotes[target])).split(":")[-1] / Path(".").resolve().relative_to(str(root))}{os.sep}'
                 if ':' in remotes[target]:
                     mkdir_cmd = f'ssh {target} {mkdir_cmd}' 
-                print(mkdir_cmd)
-                subprocess.run(mkdir_cmd.split())
+                run_command(mkdir_cmd.split())
 
-            print(cmdlist)
-            print(" ".join(cmdlist))
-            subprocess.run(cmdlist)
+            run_command([SYNC_COMMAND] + sync_args_local)
         else:
             raise RuntimeError(f"Remote {target} not found. Please check {root}/.mirrors.")
 
 def pull(files, source, remotes, root):
     if source in remotes:
-        cmdlist = PRECMDLIST[:]
+        sync_args_local = SYNC_ARGS[:]
         if files != [] and files is not None:
-            PRECMDLIST.append('--relative')
+            sync_args_local.append('--relative') 
             for file in files:
                 # The additional dot in the source paths ensures that we pull directory structure relative to current directory.
-                cmdlist.append(str(Path(remotes[source]).as_posix() / Path('.').resolve().relative_to(str(root))) + '/./' + file )
+                sync_args_local.append(str(Path(remotes[source]).as_posix() / Path('.').resolve().relative_to(str(root))) + '/./' + file )
         else: 
-            cmdlist.append(str(Path(remotes[source]) / Path('.').resolve().relative_to(str(root))) + os.sep)
-        cmdlist.append('.')
-        print(cmdlist)
-        print(" ".join(cmdlist))
-        subprocess.run(cmdlist)
+            sync_args_local.append(str(Path(remotes[source]) / Path('.').resolve().relative_to(str(root))) + os.sep)
+        sync_args_local.append('.')
+        run_command([SYNC_COMMAND] + sync_args_local)
 
 def run_command(cmdlist: list[str], capture_output=False):
     print(cmdlist)
@@ -301,23 +294,23 @@ def main():
     # if not args['files']:
     #     args['files'] = ['.']
 
-    PRECMDLIST.extend(extra_args_list)
+    SYNC_ARGS.extend(extra_args_list)
 
     if config.delete:
-        PRECMDLIST.append('--delete')
+        SYNC_ARGS.append('--delete')
 
     if config.delete_excluded:
-        PRECMDLIST.append(f"--delete-excluded")
+        SYNC_ARGS.append(f"--delete-excluded")
 
     if config.dry_run:
-        PRECMDLIST.append(f"--dry-run")
+        SYNC_ARGS.append(f"--dry-run")
 
     # NOTE: Include must come before exclude. Order matters somehow.
     if not args.no_excludes:
         for item in config.includes: 
-            PRECMDLIST.append(f"--include={item}")
+            SYNC_ARGS.append(f"--include={item}")
         for item in config.excludes: 
-            PRECMDLIST.append(f"--exclude={item}")
+            SYNC_ARGS.append(f"--exclude={item}")
 
     if config.mode == 'push' and args.target: 
         assert all(t in config.remotes.keys() for t in args.target)
@@ -326,7 +319,7 @@ def main():
             push(config.files, args.target, config.remotes, root, mkdir=config.mkdir)
     elif config.mode == 'pull' and args.source:
         assert args.source in config.remotes.keys()
-        warn = 'y' if args['no_confirm'] else input(f"PULL from {args.source}? (y/Y/ENTER to continue)")
+        warn = 'y' if args.no_confirm else input(f"PULL from {args.source}? (y/Y/ENTER to continue)")
         if warn.lower() == 'y' or warn == '': 
             pull(config.files, args.source, config.remotes, root)
     elif config.mode == 'diff':
@@ -337,17 +330,17 @@ def main():
         editor = os.environ.get('EDITOR', 'vi')
         print(f"Opening config file: {root / '.mirrors.yaml'}")
         time.sleep(1)
-        subprocess.run([editor, root / '.mirrors.yaml'])
+        run_command([editor, root / '.mirrors.yaml'])
     elif config.mode == 'cmd':
         assert all(t in config.remotes.keys() for t in args.target)
         for target in args.target:
             remotedir= str(Path(config.remotes[target]) / Path('.').resolve().relative_to(str(root)) ) + os.sep
             if ':' in remotedir:
                 remote, dir = remotedir.split(':')
-                res = run_ssh_command(remote, ' '.join(args['command']), dir)
+                res = run_ssh_command(remote, ' '.join(args.command), dir)
                 sys.exit(res.returncode)
             else:
-                res = run_command(args['command'])
+                res = run_command(args.command)
                 sys.exit(res.returncode)
 
 if __name__ == "__main__":
