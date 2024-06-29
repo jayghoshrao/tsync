@@ -56,6 +56,9 @@ spec.loader.exec_module(diskutils)
 
 yaml = YAML(typ='safe')
 
+# COMMAND='rsync'
+# ARGS=['']
+
 PRECMD="rsync -avzhPr"
 PRECMDLIST = PRECMD.split()
 
@@ -75,12 +78,7 @@ class Config:
         for key in self.__dataclass_fields__: 
             if not in_dict.get(key):
                 continue
-            elif isinstance(self.__dict__[key], list):
-                self.__dict__[key]= list(set(self.__dict__[key] + in_dict.get(key)))
-            elif isinstance(self.__dict__[key], dict):
-                self.__dict__[key].update(in_dict.get('remotes', {}))
-            else:
-                self.__dict__[key] = in_dict.get(key)
+            self.__dict__[key] = in_dict.get(key)
 
 def findup(name, path:Path):
     while str(path) != '/':
@@ -232,7 +230,7 @@ def run_ssh_command(remote:str, command:str, dir):
     result = run_command(cmd)
     return result
 
-def main():
+def parse_args():
     ap = argparse.ArgumentParser()
 
     # meg = ap.add_mutually_exclusive_group()
@@ -262,10 +260,6 @@ def main():
 
     sub_edit= subparsers.add_parser('edit', help='list remotes found in .mirrors file')
 
-    # TODO: This might get in the way of how relative paths are handled. Needs CAREFUL testing
-    # TODO: implement -r without key, just value of remote, always use a dummy key 
-    ap.add_argument("-r", "--remote", help="Don't use .mirrors file, use this specified remote location")
-
     ap.add_argument('-ne', '--no-excludes', action='store_true', default=False, help='Ignore excludes')
     ap.add_argument("-y", "--no-confirm", action='store_true', help="Don't prompt before syncing data")
     ap.add_argument("-d", "--dry-run", action='store_true', help="Only show which commands will run")
@@ -276,29 +270,24 @@ def main():
     ## Multi-pass parsing to allow arbitrary ordering of subparser and parser commandline args
     args, extra_args_list = ap.parse_known_args()
     args, extra_args_list = ap.parse_known_args(extra_args_list, args)
-    args = vars(args)
+    return args, extra_args_list
+    # args = vars(args)
 
+def main():
+    args, extra_args_list = parse_args()
     config = Config()
-    config.update(args)
 
     root = None
-    cwd = Path().resolve()
-    if args['remote']: 
-        config.remotes = {'args_remote': args['remote']}
-        if config.mode == 'push':
-            args['target'] = [ 'args_remote' ]
-        elif config.mode == 'pull':
-            args['source'] = 'args_remote'
-        root = cwd
-    else:
-        root_yaml, config_yaml = find_and_parse('.mirrors.yaml', yaml.load)
-        if config_yaml:
-            config.update(config_yaml)
-            root = root_yaml
+    root_yaml, config_yaml = find_and_parse('.mirrors.yaml', yaml.load)
+    if config_yaml:
+        config.update(config_yaml)
+        root = root_yaml
+
+    config.update(vars(args))
 
     if config.remotes:
         for tag, remote_path in config.remotes.items():
-            if (config.mode=='push' and tag in args.get('target', [])) or (config.mode=='pull' and tag==args.get('source')):
+            if (config.mode=='push' and tag in (args.target or [])) or (config.mode=='pull' and tag==args.source):
                 config.remotes[tag] = resolve_remote(remote_path)
 
     if root:
@@ -324,23 +313,22 @@ def main():
         PRECMDLIST.append(f"--dry-run")
 
     # NOTE: Include must come before exclude. Order matters somehow.
-    if not args.get('no_excludes'):
-        if args.get('source') or args.get('target'): 
-            for item in config.includes: 
-                PRECMDLIST.append(f"--include={item}")
-            for item in config.excludes: 
-                PRECMDLIST.append(f"--exclude={item}")
+    if not args.no_excludes:
+        for item in config.includes: 
+            PRECMDLIST.append(f"--include={item}")
+        for item in config.excludes: 
+            PRECMDLIST.append(f"--exclude={item}")
 
-    if config.mode == 'push' and args.get('target'): 
-        assert all(t in config.remotes.keys() for t in args['target'])
-        warn = 'y' if args['no_confirm'] else input(f"PUSH to {args['target']}? (y/Y/ENTER to continue)")
+    if config.mode == 'push' and args.target: 
+        assert all(t in config.remotes.keys() for t in args.target)
+        warn = 'y' if args.no_confirm else input(f"PUSH to {args.target}? (y/Y/ENTER to continue)")
         if warn.lower() == 'y' or warn == '': 
-            push(config.files, args['target'], config.remotes, root, mkdir=config.mkdir)
-    elif config.mode == 'pull' and args.get('source'):
-        assert args['source'] in config.remotes.keys()
-        warn = 'y' if args['no_confirm'] else input(f"PULL from {args['source']}? (y/Y/ENTER to continue)")
+            push(config.files, args.target, config.remotes, root, mkdir=config.mkdir)
+    elif config.mode == 'pull' and args.source:
+        assert args.source in config.remotes.keys()
+        warn = 'y' if args['no_confirm'] else input(f"PULL from {args.source}? (y/Y/ENTER to continue)")
         if warn.lower() == 'y' or warn == '': 
-            pull(config.files, args['source'], config.remotes, root)
+            pull(config.files, args.source, config.remotes, root)
     elif config.mode == 'diff':
         pass
         # Get full paths of dirs
@@ -351,8 +339,8 @@ def main():
         time.sleep(1)
         subprocess.run([editor, root / '.mirrors.yaml'])
     elif config.mode == 'cmd':
-        assert all(t in config.remotes.keys() for t in args['target'])
-        for target in args['target']:
+        assert all(t in config.remotes.keys() for t in args.target)
+        for target in args.target:
             remotedir= str(Path(config.remotes[target]) / Path('.').resolve().relative_to(str(root)) ) + os.sep
             if ':' in remotedir:
                 remote, dir = remotedir.split(':')
