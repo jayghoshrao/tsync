@@ -165,13 +165,15 @@ def resolve_remote(remotestr:str):
             else:
                 rerun_in_elevated_subshell()
     
-
     # TODO: Check if qualifiers are valid ssh remotes
 
     return remotestr
 
 
 def push(files, targets, remotes, root, mkdir=False):
+    """
+    PUSH to all given targets that are registered remotes.
+    """
     SYNC_ARGS.append('--relative')
     if targets == ['all']:
         targets = [ x for x in remotes ]
@@ -198,6 +200,9 @@ def push(files, targets, remotes, root, mkdir=False):
             raise RuntimeError(f"Remote {target} not found. Please check {root}/.mirrors.")
 
 def pull(files, source, remotes, root):
+    """
+    PULL from specified source that is a registered remote.
+    """
     if source in remotes:
         sync_args_local = SYNC_ARGS[:]
         if files != [] and files is not None:
@@ -248,10 +253,10 @@ def parse_args():
     sub_cmd.add_argument('command', nargs='*', help='Command to execute')
     sub_cmd.add_argument('--target', nargs='*', help='Command to execute')
 
-    sub_diff= subparsers.add_parser('diff', help='list remotes found in .mirrors file')
+    sub_diff= subparsers.add_parser('diff', help='diff with remote')
     sub_diff.add_argument('diff', help="target servers")
 
-    sub_edit= subparsers.add_parser('edit', help='list remotes found in .mirrors file')
+    sub_edit= subparsers.add_parser('edit', help='edit nearest .mirrors.yaml config')
 
     ap.add_argument('-ne', '--no-excludes', action='store_true', default=False, help='Ignore excludes')
     ap.add_argument("-y", "--no-confirm", action='store_true', help="Don't prompt before syncing data")
@@ -264,7 +269,6 @@ def parse_args():
     args, extra_args_list = ap.parse_known_args()
     args, extra_args_list = ap.parse_known_args(extra_args_list, args)
     return args, extra_args_list
-    # args = vars(args)
 
 def main():
     args, extra_args_list = parse_args()
