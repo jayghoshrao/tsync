@@ -298,7 +298,7 @@ def main():
 
     if config.remotes:
         for tag, remote_path in config.remotes.items():
-            if tag in args.get('target', []):
+            if (config.mode=='push' and tag in args.get('target', [])) or (config.mode=='pull' and tag==args.get('source')):
                 config.remotes[tag] = resolve_remote(remote_path)
 
     if root:
