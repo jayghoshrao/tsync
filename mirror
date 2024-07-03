@@ -1,19 +1,28 @@
 #!/usr/bin/env python
 
-"""
-MIRROR/MIR (rewritten)
-- rsync wrapper to sync files within a given directory to/from servers
-- requires a .mirrors file in the root directory of sync
-    - line format: <name> <path/to/server/root>
-    - example: jureca jureca12:/p/project/cjibg12/scratch
+""" mirror
+rsync wrapper to mirror files between local machine and multiple remotes while
+maintaining directory structure. The closest parent directory containing .mirrors.yaml
+is considered the root directory. Remotes must be listed in .mirrors.yaml as follows:
 
-USAGE: 
-    `mir push TARGETS...-d`
-    `mir pull SOURCE`
+```.mirrors.yaml
+remotes:
+    # <remote_id> [<qualifier>:]<path>
+    # Where the optional <qualifier> can be 
+    #   - a valid SCSI disk UUID or 
+    #   - a valid ssh remote
+    asgard: asgard:/path/to/remote_root # Assuming asgard is specified in ssh config
+    niflheim: user@niflheim:directory
+    hdd: <UUID>:/path/to/root_dir # Mounts SCSI disk with given UUID at /media/<devicename> before mirroring
+    local_root: /path/to/root_dir_copy
+excludes:
+    - __pycache__
+    - .ccls
+```
 
-WARNINGS:
-    - rsync can be dangerous if not used properly
-    - .git folder is currently ignored by default
+usage: 
+    mirror push [ARGS] REMOTE_IDS...
+    mirror pull [ARGS] REMOTE_ID
 """
 
 # TODO: Find all .mirror files in all parents and mash them together. Closest file should override farthest file.
@@ -23,11 +32,6 @@ WARNINGS:
 # TODO: mirror list <remote> should list current dir on remote
 # TODO: mirror tree <remote> should list current tree on remote
 # TODO: mirror log should show list of push/pull. Can place it in the dir of the yaml file. Can keep it in default excludes.
-
-# TODO: Handle UUID:path for mountable disks
-# remote_name: <qualifier>:<remote_root_path> or <remote_root_path>
-# qualifier can be 'ssh' or a given UUID
-# When UUID is given it should mount the drive and resolve the new path automatically.
 
 ## On diffing
 # - Not that easy w.r.t. getting an exact diff for all files since we would have to perform a comparison across ssh => transfer data.
