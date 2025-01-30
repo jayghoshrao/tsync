@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/python
 
 """ mirror
 rsync wrapper to mirror files between local machine and multiple remotes while
@@ -25,13 +25,14 @@ usage:
     mirror pull [ARGS] REMOTE_ID
 """
 
-# TODO: Find all .mirror files in all parents and mash them together. Closest file should override farthest file.
 # TODO: Set autocompletable choices for sources and targets from remotes.keys()
 # TODO: Allow diffing with remotes
 # TODO: Allow setting root folder via args
 # TODO: mirror list <remote> should list current dir on remote
 # TODO: mirror tree <remote> should list current tree on remote
 # TODO: mirror log should show list of push/pull. Can place it in the dir of the yaml file. Can keep it in default excludes.
+# TODO: Reduce dependencies: rich is not a necessity.
+# TODO: Print-command-only mode? 
 
 ## On diffing
 # - Not that easy w.r.t. getting an exact diff for all files since we would have to perform a comparison across ssh => transfer data.
@@ -50,6 +51,14 @@ from rich.pretty import pprint
 from ruamel.yaml import YAML
 from pathlib import Path
 from dataclasses import dataclass, field
+import tempfile
+
+import difflib
+from deepdiff import DeepDiff
+from hashlib import md5
+from pathlib import Path
+import magic
+# from rich.columns import Columns
 
 from importlib.util import spec_from_loader, module_from_spec
 from importlib.machinery import SourceFileLoader 
@@ -111,12 +120,12 @@ def find_and_parse(filename=".mirrors.yaml", parser=yaml.load):
         return root, parser(root / filename)
     return None, {}
 
-def find_files(ignore_files=[], ignore_dirs=['.git']):
+def find_files(target_dir='.', ignore_files=[], ignore_dirs=['.git']):
     # return [ p for p in Path('.').rglob('*') if p.is_file() and STATEDIR not in p.parents]
     ignore_dirs = [Path(dir) for dir in ignore_dirs]
     ignore_files = [Path(f) for f in ignore_files]
 
-    files = [ p for p in Path('.').rglob('*') if p.is_file() ]
+    files = [ p for p in Path(target_dir).rglob('*') if p.is_file() ]
 
     for dir in ignore_dirs:
         files = list(filter(lambda f: dir not in f.parents, files))
@@ -173,6 +182,61 @@ def resolve_remote(remotestr:str):
 
     return remotestr
 
+def get_file_hashes(dir) -> dict:
+    files = find_files(dir)
+    hashes = {}
+    for ifile in files: 
+        with open(ifile, 'rb') as fp:
+            hash = md5(fp.read()).hexdigest()
+            relpath = Path(ifile).relative_to(dir)
+            hashes.update({relpath.as_posix(): hash})
+    return hashes
+
+def my_fancy_diff(state1, state2, path1=None, path2=None):
+    diff = DeepDiff(state1, state2)
+    if diff:
+        if 'dictionary_item_added' in diff:
+            # added   = Columns([ x[6:-2] for x in  diff['dictionary_item_added'] ] , equal=False, expand=True)
+            added = [ x[6:-2] for x in  diff['dictionary_item_added'] ]
+            print("[green]ADDED[/green]:", *added)
+        if 'dictionary_item_removed' in diff:
+            # removed = Columns([ x[6:-2] for x in  diff['dictionary_item_removed'] ] , equal=False, expand=True)
+            removed = [ x[6:-2] for x in  diff['dictionary_item_removed'] ]
+            print("[red]REMOVED[/red]:", *removed)
+        if 'values_changed' in diff:
+            # changed = Columns([ x[6:-2] for x in  diff['dictionary_item_changed'] ] , equal=True, expand=True)
+            changed = { x[6:-2]:diff['values_changed'][x]  for x in  diff['values_changed'] }
+            print("[yellow]CHANGED[/yellow]:", *changed)
+
+            if path1.is_file() and path1.suffix == '.gz':
+                with tarfile.open(path1, 'r:gz') as tar:
+                    tar.extractall(Path('/tmp') / "path1", members=[x for x in tar.getmembers() if x.name in changed])
+                path1 = Path("/tmp/path1")
+
+            if path2.is_file() and path2.suffix == '.gz':
+                with tarfile.open(path2, 'r:gz') as tar:
+                    tar.extractall(Path('/tmp') / "path2", members=[x for x in tar.getmembers() if x.name in changed])
+                path2 = Path("/tmp/path2")
+                
+            mime = magic.Magic(mime=True)
+            allowed_types = ['text/plain', 'text/csv', 'application/json']
+
+            for changed_file in changed:
+                mimetype = mime.from_file(str(path1 / changed_file))
+                if mimetype in allowed_types:
+                    with open(path1 / changed_file, 'r') as fp:
+                        oldfile = fp.read().split('\n')
+                    with open(path2 / changed_file, 'r') as fp:
+                        newfile = fp.read().split('\n')
+                    out = list(difflib.unified_diff(oldfile, newfile, fromfile=str(path1/changed_file), tofile=str(path2/changed_file), n=0))
+                    for line in out:
+                        if line[0] == '-': 
+                            print('[red]' + line)
+                        if line[0] == '+': 
+                            print('[green]' + line)
+        sys.exit(-1)
+    else:
+        print("Clean!")
 
 def push(files, targets, remotes, root, mkdir=False):
     """
@@ -258,7 +322,10 @@ def parse_args():
     sub_cmd.add_argument('--target', nargs='*', help='Command to execute')
 
     sub_diff= subparsers.add_parser('diff', help='diff with remote')
-    sub_diff.add_argument('diff', help="target servers")
+    sub_diff.add_argument('remote', help="target servers")
+    # sub_diff.add_argument('--pull', action='store_true', help="source=local dest=remote")
+    # sub_diff.add_argument('--push', action='store_true', help="source=remote dest=local")
+    sub_diff.add_argument('--copy', action='store_true', help="copy remote files to temp directory and show detailed diff")
 
     sub_edit= subparsers.add_parser('edit', help='edit nearest .mirrors.yaml config')
 
@@ -288,7 +355,7 @@ def main():
 
     if config.remotes:
         for tag, remote_path in config.remotes.items():
-            if (config.mode=='push' and tag in (args.target or [])) or (config.mode=='pull' and tag==args.source):
+            if (config.mode=='push' and tag in (args.target or [])) or (config.mode=='pull' and tag==args.source) or (config.mode=='diff' and tag==args.remote):
                 config.remotes[tag] = resolve_remote(remote_path)
 
     if root:
@@ -298,11 +365,6 @@ def main():
 
     if not config.mode:
         return
-
-    # if not args['files']:
-    #     args['files'] = ['.']
-
-    SYNC_ARGS.extend(extra_args_list)
 
     if config.delete:
         SYNC_ARGS.append('--delete')
@@ -320,6 +382,9 @@ def main():
         for item in config.excludes: 
             SYNC_ARGS.append(f"--exclude={item}")
 
+    print(f"Unprocessed args directly passed to {SYNC_COMMAND}: {extra_args_list}")
+    SYNC_ARGS.extend(extra_args_list)
+
     if config.mode == 'push' and args.target: 
         assert all(t in config.remotes.keys() for t in args.target)
         warn = 'y' if args.no_confirm else input(f"PUSH to {args.target}? (y/Y/ENTER to continue)")
@@ -331,9 +396,25 @@ def main():
         if warn.lower() == 'y' or warn == '': 
             pull(config.files, args.source, config.remotes, root)
     elif config.mode == 'diff':
-        pass
-        # Get full paths of dirs
-        # Find a difflib
+        remote_path = str(Path(config.remotes[args.remote]) / Path('.').resolve().relative_to(str(root))) + os.sep
+        if args.copy:  
+            sync_args_local_pass1 = [ '-ar', '--dry-run', '--checksum', '--out-format="%f"', '.', remote_path]
+            with tempfile.TemporaryDirectory() as tempdir:
+                out=run_command([SYNC_COMMAND] + sync_args_local_pass1, capture_output=True)
+                changed_files = filter(None, out.stdout.replace('"', '').split('\n'))
+                changed_files = list(filter(lambda x: x!='.', changed_files))
+                changed_files = [ remote_path + f for f in changed_files ]
+                print(changed_files)
+                if changed_files: 
+                    run_command([SYNC_COMMAND, '-avzhPrc' ] + changed_files + [tempdir])
+                    remote_hashes = get_file_hashes(tempdir)
+                    local_hashes = get_file_hashes('.')
+                    print(remote_hashes)
+                    print(local_hashes)
+                    my_fancy_diff(local_hashes, remote_hashes, path1=Path('.'), path2=Path(tempdir))
+        else:
+            run_command([SYNC_COMMAND, '-arnci', '.', remote_path])
+            run_command([SYNC_COMMAND, '-arnci', remote_path, '.'])
     elif config.mode == 'edit':
         editor = os.environ.get('EDITOR', 'vi')
         print(f"Opening config file: {root / '.mirrors.yaml'}")
