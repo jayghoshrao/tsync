@@ -244,13 +244,13 @@ def parse_args():
     sub_push = subparsers.add_parser('push', help='PUSH to multiple sources')
     sub_push.add_argument('target', nargs='*', help="target servers")
     sub_push.add_argument('-f', '--files', nargs='*', help='files or directories to sync')
-    sub_push.add_argument('-e', '--excludes', nargs='*', action='extend', default = ['.git', '.mypy_cache', '__pycache__' ], help='exclude PATTERN')
+    sub_push.add_argument('-e', '--excludes', nargs='*', action='extend', default = [], help='exclude PATTERN')
     sub_push.add_argument('-i', '--includes', nargs='*', action='extend', default = [], help='include PATTERN. Do not exclude these files.')
 
     sub_pull = subparsers.add_parser('pull', help='pull from ONE source')
     sub_pull.add_argument('source', nargs='?', help="target servers")
     sub_pull.add_argument('-f', '--files', nargs='*', help='files or directories to sync')
-    sub_pull.add_argument('-e', '--excludes', nargs='*', action='extend', default = ['.git', '.state', '.mypy_cache', '__pycache__' ], help='exclude PATTERN')
+    sub_pull.add_argument('-e', '--excludes', nargs='*', action='extend', default = [], help='exclude PATTERN')
     sub_pull.add_argument('-i', '--includes', nargs='*', action='extend', default = [], help='include PATTERN. Do not exclude these files.')
 
     sub_cmd = subparsers.add_parser('cmd', help='Run command on remote in corresponding directory')
