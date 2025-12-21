@@ -1,8 +1,8 @@
 """
-mirror-sync: rsync wrapper to mirror files between local machine and remotes.
+tsync: rsync wrapper to sync files between local machine and remotes.
 
-The closest parent directory containing .mirrors.yaml is considered the root
-directory. Remotes are defined in .mirrors.yaml:
+The closest parent directory containing .tsync.yaml is considered the root
+directory. Remotes are defined in .tsync.yaml:
 
 ```yaml
 remotes:
@@ -18,11 +18,11 @@ includes:
 ```
 
 Usage:
-    mirror-sync push [OPTIONS] REMOTES...
-    mirror-sync pull [OPTIONS] REMOTE
-    mirror-sync diff REMOTE [--copy]
-    mirror-sync cmd --target REMOTES... COMMAND...
-    mirror-sync edit
+    tsync push [OPTIONS] REMOTES...
+    tsync pull [OPTIONS] REMOTE
+    tsync diff REMOTE [--copy]
+    tsync cmd --target REMOTES... COMMAND...
+    tsync edit
 """
 
 import argparse
@@ -78,8 +78,8 @@ def findup(name: str, path: Path) -> Path | None:
     return None
 
 
-def find_and_parse(filename: str = ".mirrors.yaml", parser=yaml.load):
-    """Find and parse the nearest .mirrors.yaml config file."""
+def find_and_parse(filename: str = ".tsync.yaml", parser=yaml.load):
+    """Find and parse the nearest .tsync.yaml config file."""
     cwd = Path().resolve()
     root = findup(filename, cwd)
     if root is not None:
@@ -196,7 +196,7 @@ def push(files: list, targets: list, remotes: dict, root: Path, sync_args: list,
 
     for target in targets:
         if target not in remotes:
-            raise RuntimeError(f"Remote {target} not found. Please check {root}/.mirrors.yaml")
+            raise RuntimeError(f"Remote {target} not found. Please check {root}/.tsync.yaml")
 
         sync_args_local = sync_args[:]
         if files:
@@ -253,8 +253,8 @@ def run_ssh_command(remote: str, command: str, directory: str) -> subprocess.Com
 def parse_args():
     """Parse command line arguments."""
     ap = argparse.ArgumentParser(
-        prog='mirror-sync',
-        description='rsync wrapper for mirroring files with push/pull workflow'
+        prog='tsync',
+        description='rsync wrapper for syncing files with push/pull workflow'
     )
 
     subparsers = ap.add_subparsers(dest='mode')
@@ -287,7 +287,7 @@ def parse_args():
                           help="Copy remote files to temp directory and show detailed diff")
 
     # Edit subcommand
-    subparsers.add_parser('edit', help='Edit nearest .mirrors.yaml config')
+    subparsers.add_parser('edit', help='Edit nearest .tsync.yaml config')
 
     # Global options
     ap.add_argument('-ne', '--no-excludes', action='store_true', default=False, help='Ignore excludes')
@@ -310,7 +310,7 @@ def main():
     config = Config()
 
     root = None
-    root_yaml, config_yaml = find_and_parse('.mirrors.yaml', yaml.load)
+    root_yaml, config_yaml = find_and_parse('.tsync.yaml', yaml.load)
     if config_yaml:
         config.update(config_yaml)
         root = root_yaml
@@ -388,7 +388,7 @@ def main():
 
     elif config.mode == 'edit':
         editor = os.environ.get('EDITOR', 'vi')
-        config_path = (root / '.mirrors.yaml').as_posix()
+        config_path = (root / '.tsync.yaml').as_posix()
         print(f"Opening config file: {config_path}")
         time.sleep(1)
         run_command([editor, config_path])

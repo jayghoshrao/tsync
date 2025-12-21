@@ -1,11 +1,11 @@
-# mirror-sync
+# tsync
 
-An rsync wrapper for mirroring directory trees between machines with a simple push/pull workflow.
+An rsync wrapper for syncing directory trees between machines with a simple push/pull workflow.
 
 ## Features
 
 - **Push/Pull workflow**: Sync files to multiple remotes or pull from a single source
-- **Config-based remotes**: Define remotes once in `.mirrors.yaml`, use by name
+- **Config-based remotes**: Define remotes once in `.tsync.yaml`, use by name
 - **Directory structure preservation**: Maintains relative paths from the config root
 - **Flexible excludes/includes**: Configure patterns in YAML or override via CLI
 - **Diff with remotes**: Compare local and remote states before syncing
@@ -14,20 +14,20 @@ An rsync wrapper for mirroring directory trees between machines with a simple pu
 ## Installation
 
 ```bash
-pip install mirror-sync
+pip install tsync
 ```
 
 Or install from source:
 
 ```bash
-git clone https://github.com/jayghoshter/mirror-sync.git
-cd mirror-sync
+git clone https://github.com/jayghoshter/tsync.git
+cd tsync
 pip install -e .
 ```
 
 ## Quick Start
 
-1. Create a `.mirrors.yaml` in your project root:
+1. Create a `.tsync.yaml` in your project root:
 
 ```yaml
 remotes:
@@ -49,7 +49,7 @@ includes:
 
 ```bash
 cd /path/to/project/subdir
-mirror-sync push server
+tsync push server
 ```
 
 This syncs the current directory to `user@hostname:/path/to/backup/subdir/`.
@@ -57,7 +57,7 @@ This syncs the current directory to `user@hostname:/path/to/backup/subdir/`.
 3. Pull from a remote:
 
 ```bash
-mirror-sync pull server
+tsync pull server
 ```
 
 ## Usage
@@ -67,10 +67,10 @@ mirror-sync pull server
 Push current directory to one or more remotes:
 
 ```bash
-mirror-sync push server              # push to 'server'
-mirror-sync push server nas          # push to multiple remotes
-mirror-sync push all                 # push to all configured remotes
-mirror-sync push server -f file.txt  # push specific files only
+tsync push server              # push to 'server'
+tsync push server nas          # push to multiple remotes
+tsync push all                 # push to all configured remotes
+tsync push server -f file.txt  # push specific files only
 ```
 
 ### Pull
@@ -78,8 +78,8 @@ mirror-sync push server -f file.txt  # push specific files only
 Pull from a remote to current directory:
 
 ```bash
-mirror-sync pull server
-mirror-sync pull server -f file.txt  # pull specific files only
+tsync pull server
+tsync pull server -f file.txt  # pull specific files only
 ```
 
 ### Diff
@@ -87,8 +87,8 @@ mirror-sync pull server -f file.txt  # pull specific files only
 Compare local and remote states:
 
 ```bash
-mirror-sync diff server           # quick rsync-based diff
-mirror-sync diff server --copy    # detailed diff with file contents
+tsync diff server           # quick rsync-based diff
+tsync diff server --copy    # detailed diff with file contents
 ```
 
 ### Remote Commands
@@ -96,16 +96,16 @@ mirror-sync diff server --copy    # detailed diff with file contents
 Run commands on remotes in the corresponding directory:
 
 ```bash
-mirror-sync cmd --target server -- ls -la
-mirror-sync cmd --target server -- git status
+tsync cmd --target server -- ls -la
+tsync cmd --target server -- git status
 ```
 
 ### Edit Config
 
-Open the nearest `.mirrors.yaml` in your editor:
+Open the nearest `.tsync.yaml` in your editor:
 
 ```bash
-mirror-sync edit
+tsync edit
 ```
 
 ## Options
@@ -125,12 +125,12 @@ mirror-sync edit
 Additional rsync options can be passed directly:
 
 ```bash
-mirror-sync push server -- --compress-level=9
+tsync push server -- --compress-level=9
 ```
 
 ## Configuration
 
-The `.mirrors.yaml` file is searched upward from the current directory. The directory containing the config file is considered the "root" - all relative paths are computed from there.
+The `.tsync.yaml` file is searched upward from the current directory. The directory containing the config file is considered the "root" - all relative paths are computed from there.
 
 ```yaml
 remotes:
@@ -154,12 +154,12 @@ includes:
 
 ## How It Works
 
-1. Searches upward for `.mirrors.yaml` to find the project root
+1. Searches upward for `.tsync.yaml` to find the project root
 2. Computes the relative path from root to current directory
 3. Constructs the remote path: `<remote_root>/<relative_path>/`
 4. Runs rsync with the configured options
 
-This means if you're in `/home/user/projects/myapp/src/` and the `.mirrors.yaml` is in `/home/user/projects/myapp/`, syncing to `server: host:/backup` will target `host:/backup/src/`.
+This means if you're in `/home/user/projects/myapp/src/` and the `.tsync.yaml` is in `/home/user/projects/myapp/`, syncing to `server: host:/backup` will target `host:/backup/src/`.
 
 ## Requirements
 

@@ -1,4 +1,4 @@
-"""Tests for mirror-sync CLI."""
+"""Tests for tsync CLI."""
 
 import subprocess
 import sys
@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
-from mirror_sync.cli import (
+from tsync.cli import (
     Config,
     findup,
     find_files,
@@ -223,35 +223,35 @@ class TestParseArgs:
 
     def test_push_with_targets(self) -> None:
         """Parse push command with multiple targets."""
-        with patch('sys.argv', ['mirror-sync', 'push', 'server1', 'server2']):
+        with patch('sys.argv', ['tsync', 'push', 'server1', 'server2']):
             args, _ = parse_args()
             assert args.mode == 'push'
             assert args.target == ['server1', 'server2']
 
     def test_pull_with_source(self) -> None:
         """Parse pull command with source."""
-        with patch('sys.argv', ['mirror-sync', 'pull', 'server']):
+        with patch('sys.argv', ['tsync', 'pull', 'server']):
             args, _ = parse_args()
             assert args.mode == 'pull'
             assert args.source == 'server'
 
     def test_diff_mode(self) -> None:
         """Parse diff command."""
-        with patch('sys.argv', ['mirror-sync', 'diff', 'server']):
+        with patch('sys.argv', ['tsync', 'diff', 'server']):
             args, _ = parse_args()
             assert args.mode == 'diff'
             assert args.remote == 'server'
 
     def test_global_options(self) -> None:
         """Parse global options before subcommand."""
-        with patch('sys.argv', ['mirror-sync', '-y', '-d', 'push', 'server']):
+        with patch('sys.argv', ['tsync', '-y', '-d', 'push', 'server']):
             args, _ = parse_args()
             assert args.no_confirm is True
             assert args.dry_run is True
 
     def test_extra_args_passthrough(self) -> None:
         """Pass unrecognized args through for rsync."""
-        with patch('sys.argv', ['mirror-sync', 'push', 'server', '--bwlimit=1000']):
+        with patch('sys.argv', ['tsync', 'push', 'server', '--bwlimit=1000']):
             args, extra = parse_args()
             assert '--bwlimit=1000' in extra
 
@@ -271,7 +271,7 @@ class TestIntegration:
         Directory structure before:
             tmp_path/
             ├── project/
-            │   ├── .mirrors.yaml
+            │   ├── .tsync.yaml
             │   ├── file.txt
             │   └── subdir/
             │       └── nested.txt
@@ -296,12 +296,12 @@ class TestIntegration:
         backup = tmp_path / "backup"
         backup.mkdir()
 
-        config = project / ".mirrors.yaml"
+        config = project / ".tsync.yaml"
         config.write_text(f"remotes:\n  backup: {backup}\n")
 
         # Run the CLI
         result = subprocess.run(
-            [sys.executable, "-m", "mirror_sync.cli", "push", "backup", "-y"],
+            [sys.executable, "-m", "tsync.cli", "push", "backup", "-y"],
             cwd=project,
             capture_output=True,
             text=True,
@@ -320,7 +320,7 @@ class TestIntegration:
         Directory structure before:
             tmp_path/
             ├── project/
-            │   └── .mirrors.yaml
+            │   └── .tsync.yaml
             └── backup/
                 ├── file.txt
                 └── subdir/
@@ -329,7 +329,7 @@ class TestIntegration:
         Directory structure after pull:
             tmp_path/
             ├── project/
-            │   ├── .mirrors.yaml
+            │   ├── .tsync.yaml
             │   ├── file.txt
             │   └── subdir/
             │       └── nested.txt
@@ -346,11 +346,11 @@ class TestIntegration:
         subdir.mkdir()
         (subdir / "nested.txt").write_text("nested from backup")
 
-        config = project / ".mirrors.yaml"
+        config = project / ".tsync.yaml"
         config.write_text(f"remotes:\n  backup: {backup}\n")
 
         result = subprocess.run(
-            [sys.executable, "-m", "mirror_sync.cli", "pull", "backup", "-y"],
+            [sys.executable, "-m", "tsync.cli", "pull", "backup", "-y"],
             cwd=project,
             capture_output=True,
             text=True,
@@ -368,7 +368,7 @@ class TestIntegration:
         Directory structure:
             tmp_path/
             ├── project/
-            │   ├── .mirrors.yaml
+            │   ├── .tsync.yaml
             │   ├── keep.txt        <- synced
             │   └── __pycache__/
             │       └── cache.pyc   <- excluded
@@ -384,13 +384,13 @@ class TestIntegration:
         backup = tmp_path / "backup"
         backup.mkdir()
 
-        config = project / ".mirrors.yaml"
+        config = project / ".tsync.yaml"
         config.write_text(
             f"remotes:\n  backup: {backup}\nexcludes:\n  - __pycache__\n"
         )
 
         result = subprocess.run(
-            [sys.executable, "-m", "mirror_sync.cli", "push", "backup", "-y"],
+            [sys.executable, "-m", "tsync.cli", "push", "backup", "-y"],
             cwd=project,
             capture_output=True,
             text=True,
@@ -407,7 +407,7 @@ class TestIntegration:
         Directory structure:
             tmp_path/
             ├── project/
-            │   ├── .mirrors.yaml      <- config at root
+            │   ├── .tsync.yaml      <- config at root
             │   └── src/
             │       └── module.py      <- push from here
             └── backup/
@@ -427,12 +427,12 @@ class TestIntegration:
         backup = tmp_path / "backup"
         backup.mkdir()
 
-        config = project / ".mirrors.yaml"
+        config = project / ".tsync.yaml"
         config.write_text(f"remotes:\n  backup: {backup}\n")
 
         # Push from subdirectory
         result = subprocess.run(
-            [sys.executable, "-m", "mirror_sync.cli", "push", "backup", "-y"],
+            [sys.executable, "-m", "tsync.cli", "push", "backup", "-y"],
             cwd=src,  # Run from src/ subdirectory
             capture_output=True,
             text=True,
@@ -452,11 +452,11 @@ class TestIntegration:
         backup = tmp_path / "backup"
         backup.mkdir()
 
-        config = project / ".mirrors.yaml"
+        config = project / ".tsync.yaml"
         config.write_text(f"remotes:\n  backup: {backup}\n")
 
         result = subprocess.run(
-            [sys.executable, "-m", "mirror_sync.cli", "push", "backup", "-y", "-d"],
+            [sys.executable, "-m", "tsync.cli", "push", "backup", "-y", "-d"],
             cwd=project,
             capture_output=True,
             text=True,
@@ -473,7 +473,7 @@ class TestIntegration:
         Directory structure:
             tmp_path/
             ├── project/
-            │   ├── .mirrors.yaml
+            │   ├── .tsync.yaml
             │   ├── sync_me.txt       <- only this synced
             │   └── ignore_me.txt     <- not synced
             └── backup/
@@ -491,11 +491,11 @@ class TestIntegration:
         backup = tmp_path / "backup"
         backup.mkdir()
 
-        config = project / ".mirrors.yaml"
+        config = project / ".tsync.yaml"
         config.write_text(f"remotes:\n  backup: {backup}\n")
 
         result = subprocess.run(
-            [sys.executable, "-m", "mirror_sync.cli", "push", "backup", "-y",
+            [sys.executable, "-m", "tsync.cli", "push", "backup", "-y",
              "-f", "sync_me.txt"],
             cwd=project,
             capture_output=True,
@@ -514,7 +514,7 @@ class TestIntegration:
         Directory structure:
             tmp_path/
             ├── project/
-            │   ├── .mirrors.yaml
+            │   ├── .tsync.yaml
             │   ├── root.txt              <- not synced
             │   └── subdir/
             │       ├── a.txt             <- synced
@@ -539,11 +539,11 @@ class TestIntegration:
         backup = tmp_path / "backup"
         backup.mkdir()
 
-        config = project / ".mirrors.yaml"
+        config = project / ".tsync.yaml"
         config.write_text(f"remotes:\n  backup: {backup}\n")
 
         result = subprocess.run(
-            [sys.executable, "-m", "mirror_sync.cli", "push", "backup", "-y",
+            [sys.executable, "-m", "tsync.cli", "push", "backup", "-y",
              "-f", "subdir"],
             cwd=project,
             capture_output=True,
@@ -562,7 +562,7 @@ class TestIntegration:
         Directory structure before:
             tmp_path/
             ├── project/
-            │   └── .mirrors.yaml
+            │   └── .tsync.yaml
             └── backup/
                 ├── wanted.txt        <- pull only this
                 └── unwanted.txt      <- don't pull
@@ -570,7 +570,7 @@ class TestIntegration:
         Directory structure after pull -f wanted.txt:
             tmp_path/
             ├── project/
-            │   ├── .mirrors.yaml
+            │   ├── .tsync.yaml
             │   └── wanted.txt        <- pulled
             └── backup/
                 └── ...
@@ -583,11 +583,11 @@ class TestIntegration:
         (backup / "wanted.txt").write_text("wanted content")
         (backup / "unwanted.txt").write_text("unwanted content")
 
-        config = project / ".mirrors.yaml"
+        config = project / ".tsync.yaml"
         config.write_text(f"remotes:\n  backup: {backup}\n")
 
         result = subprocess.run(
-            [sys.executable, "-m", "mirror_sync.cli", "pull", "backup", "-y",
+            [sys.executable, "-m", "tsync.cli", "pull", "backup", "-y",
              "-f", "wanted.txt"],
             cwd=project,
             capture_output=True,
