@@ -1,5 +1,7 @@
 """Tests for mirror-sync CLI."""
 
+import subprocess
+import sys
 from pathlib import Path
 from unittest.mock import patch
 
@@ -257,32 +259,342 @@ class TestParseArgs:
 # Integration tests require rsync and actual filesystem operations
 # Run with: pytest tests/ -m integration
 
+
 @pytest.mark.integration
 class TestIntegration:
-    """Integration tests using local paths only."""
+    """Integration tests using local paths only (no SSH)."""
 
     def test_push_to_local_path(self, tmp_path: Path) -> None:
         """
-        Test pushing to a local directory.
+        Test pushing current directory to a local backup path.
+
+        Directory structure before:
+            tmp_path/
+            ├── project/
+            │   ├── .mirrors.yaml
+            │   ├── file.txt
+            │   └── subdir/
+            │       └── nested.txt
+            └── backup/
+
+        Directory structure after push:
+            tmp_path/
+            ├── project/
+            │   └── ...
+            └── backup/
+                ├── file.txt
+                └── subdir/
+                    └── nested.txt
+        """
+        project = tmp_path / "project"
+        project.mkdir()
+        (project / "file.txt").write_text("hello")
+        subdir = project / "subdir"
+        subdir.mkdir()
+        (subdir / "nested.txt").write_text("nested content")
+
+        backup = tmp_path / "backup"
+        backup.mkdir()
+
+        config = project / ".mirrors.yaml"
+        config.write_text(f"remotes:\n  backup: {backup}\n")
+
+        # Run the CLI
+        result = subprocess.run(
+            [sys.executable, "-m", "mirror_sync.cli", "push", "backup", "-y"],
+            cwd=project,
+            capture_output=True,
+            text=True,
+        )
+
+        assert result.returncode == 0, f"Push failed: {result.stderr}"
+        assert (backup / "file.txt").exists()
+        assert (backup / "file.txt").read_text() == "hello"
+        assert (backup / "subdir" / "nested.txt").exists()
+        assert (backup / "subdir" / "nested.txt").read_text() == "nested content"
+
+    def test_pull_from_local_path(self, tmp_path: Path) -> None:
+        """
+        Test pulling from a local backup path.
+
+        Directory structure before:
+            tmp_path/
+            ├── project/
+            │   └── .mirrors.yaml
+            └── backup/
+                ├── file.txt
+                └── subdir/
+                    └── nested.txt
+
+        Directory structure after pull:
+            tmp_path/
+            ├── project/
+            │   ├── .mirrors.yaml
+            │   ├── file.txt
+            │   └── subdir/
+            │       └── nested.txt
+            └── backup/
+                └── ...
+        """
+        project = tmp_path / "project"
+        project.mkdir()
+
+        backup = tmp_path / "backup"
+        backup.mkdir()
+        (backup / "file.txt").write_text("from backup")
+        subdir = backup / "subdir"
+        subdir.mkdir()
+        (subdir / "nested.txt").write_text("nested from backup")
+
+        config = project / ".mirrors.yaml"
+        config.write_text(f"remotes:\n  backup: {backup}\n")
+
+        result = subprocess.run(
+            [sys.executable, "-m", "mirror_sync.cli", "pull", "backup", "-y"],
+            cwd=project,
+            capture_output=True,
+            text=True,
+        )
+
+        assert result.returncode == 0, f"Pull failed: {result.stderr}"
+        assert (project / "file.txt").exists()
+        assert (project / "file.txt").read_text() == "from backup"
+        assert (project / "subdir" / "nested.txt").exists()
+
+    def test_push_respects_excludes(self, tmp_path: Path) -> None:
+        """
+        Test that excludes in config are respected.
 
         Directory structure:
             tmp_path/
-            ├── source/
+            ├── project/
             │   ├── .mirrors.yaml
-            │   └── file.txt
-            └── dest/
+            │   ├── keep.txt        <- synced
+            │   └── __pycache__/
+            │       └── cache.pyc   <- excluded
+            └── backup/
         """
-        src = tmp_path / "source"
+        project = tmp_path / "project"
+        project.mkdir()
+        (project / "keep.txt").write_text("keep me")
+        cache = project / "__pycache__"
+        cache.mkdir()
+        (cache / "cache.pyc").write_text("ignore me")
+
+        backup = tmp_path / "backup"
+        backup.mkdir()
+
+        config = project / ".mirrors.yaml"
+        config.write_text(
+            f"remotes:\n  backup: {backup}\nexcludes:\n  - __pycache__\n"
+        )
+
+        result = subprocess.run(
+            [sys.executable, "-m", "mirror_sync.cli", "push", "backup", "-y"],
+            cwd=project,
+            capture_output=True,
+            text=True,
+        )
+
+        assert result.returncode == 0
+        assert (backup / "keep.txt").exists()
+        assert not (backup / "__pycache__").exists()
+
+    def test_push_from_subdirectory(self, tmp_path: Path) -> None:
+        """
+        Test pushing from a subdirectory preserves relative path.
+
+        Directory structure:
+            tmp_path/
+            ├── project/
+            │   ├── .mirrors.yaml      <- config at root
+            │   └── src/
+            │       └── module.py      <- push from here
+            └── backup/
+
+        After push from src/:
+            tmp_path/
+            └── backup/
+                └── src/
+                    └── module.py      <- preserves src/ prefix
+        """
+        project = tmp_path / "project"
+        project.mkdir()
+        src = project / "src"
         src.mkdir()
-        (src / "file.txt").write_text("content")
+        (src / "module.py").write_text("print('hello')")
 
-        dest = tmp_path / "dest"
-        dest.mkdir()
+        backup = tmp_path / "backup"
+        backup.mkdir()
 
-        config = src / ".mirrors.yaml"
-        config.write_text(f"remotes:\n  backup: {dest}\n")
+        config = project / ".mirrors.yaml"
+        config.write_text(f"remotes:\n  backup: {backup}\n")
 
-        # This would require running the actual CLI
-        # For now, we just verify the setup is correct
-        assert config.exists()
-        assert (src / "file.txt").exists()
+        # Push from subdirectory
+        result = subprocess.run(
+            [sys.executable, "-m", "mirror_sync.cli", "push", "backup", "-y"],
+            cwd=src,  # Run from src/ subdirectory
+            capture_output=True,
+            text=True,
+        )
+
+        assert result.returncode == 0, f"Push failed: {result.stderr}"
+        # File should be at backup/src/module.py, preserving the relative path
+        assert (backup / "src" / "module.py").exists()
+        assert (backup / "src" / "module.py").read_text() == "print('hello')"
+
+    def test_dry_run_does_not_sync(self, tmp_path: Path) -> None:
+        """Test that --dry-run shows commands but doesn't sync files."""
+        project = tmp_path / "project"
+        project.mkdir()
+        (project / "file.txt").write_text("content")
+
+        backup = tmp_path / "backup"
+        backup.mkdir()
+
+        config = project / ".mirrors.yaml"
+        config.write_text(f"remotes:\n  backup: {backup}\n")
+
+        result = subprocess.run(
+            [sys.executable, "-m", "mirror_sync.cli", "push", "backup", "-y", "-d"],
+            cwd=project,
+            capture_output=True,
+            text=True,
+        )
+
+        assert result.returncode == 0
+        # File should NOT exist because it was a dry run
+        assert not (backup / "file.txt").exists()
+
+    def test_push_specific_file_with_f_flag(self, tmp_path: Path) -> None:
+        """
+        Test pushing only a specific file using -f flag.
+
+        Directory structure:
+            tmp_path/
+            ├── project/
+            │   ├── .mirrors.yaml
+            │   ├── sync_me.txt       <- only this synced
+            │   └── ignore_me.txt     <- not synced
+            └── backup/
+
+        After push -f sync_me.txt:
+            tmp_path/
+            └── backup/
+                └── sync_me.txt       <- only this file
+        """
+        project = tmp_path / "project"
+        project.mkdir()
+        (project / "sync_me.txt").write_text("sync this")
+        (project / "ignore_me.txt").write_text("ignore this")
+
+        backup = tmp_path / "backup"
+        backup.mkdir()
+
+        config = project / ".mirrors.yaml"
+        config.write_text(f"remotes:\n  backup: {backup}\n")
+
+        result = subprocess.run(
+            [sys.executable, "-m", "mirror_sync.cli", "push", "backup", "-y",
+             "-f", "sync_me.txt"],
+            cwd=project,
+            capture_output=True,
+            text=True,
+        )
+
+        assert result.returncode == 0, f"Push failed: {result.stderr}"
+        assert (backup / "sync_me.txt").exists()
+        assert (backup / "sync_me.txt").read_text() == "sync this"
+        assert not (backup / "ignore_me.txt").exists()
+
+    def test_push_specific_folder_with_f_flag(self, tmp_path: Path) -> None:
+        """
+        Test pushing only a specific folder using -f flag.
+
+        Directory structure:
+            tmp_path/
+            ├── project/
+            │   ├── .mirrors.yaml
+            │   ├── root.txt              <- not synced
+            │   └── subdir/
+            │       ├── a.txt             <- synced
+            │       └── b.txt             <- synced
+            └── backup/
+
+        After push -f subdir:
+            tmp_path/
+            └── backup/
+                └── subdir/
+                    ├── a.txt
+                    └── b.txt
+        """
+        project = tmp_path / "project"
+        project.mkdir()
+        (project / "root.txt").write_text("root file")
+        subdir = project / "subdir"
+        subdir.mkdir()
+        (subdir / "a.txt").write_text("file a")
+        (subdir / "b.txt").write_text("file b")
+
+        backup = tmp_path / "backup"
+        backup.mkdir()
+
+        config = project / ".mirrors.yaml"
+        config.write_text(f"remotes:\n  backup: {backup}\n")
+
+        result = subprocess.run(
+            [sys.executable, "-m", "mirror_sync.cli", "push", "backup", "-y",
+             "-f", "subdir"],
+            cwd=project,
+            capture_output=True,
+            text=True,
+        )
+
+        assert result.returncode == 0, f"Push failed: {result.stderr}"
+        assert not (backup / "root.txt").exists()
+        assert (backup / "subdir" / "a.txt").exists()
+        assert (backup / "subdir" / "b.txt").exists()
+
+    def test_pull_specific_file_with_f_flag(self, tmp_path: Path) -> None:
+        """
+        Test pulling only a specific file using -f flag.
+
+        Directory structure before:
+            tmp_path/
+            ├── project/
+            │   └── .mirrors.yaml
+            └── backup/
+                ├── wanted.txt        <- pull only this
+                └── unwanted.txt      <- don't pull
+
+        Directory structure after pull -f wanted.txt:
+            tmp_path/
+            ├── project/
+            │   ├── .mirrors.yaml
+            │   └── wanted.txt        <- pulled
+            └── backup/
+                └── ...
+        """
+        project = tmp_path / "project"
+        project.mkdir()
+
+        backup = tmp_path / "backup"
+        backup.mkdir()
+        (backup / "wanted.txt").write_text("wanted content")
+        (backup / "unwanted.txt").write_text("unwanted content")
+
+        config = project / ".mirrors.yaml"
+        config.write_text(f"remotes:\n  backup: {backup}\n")
+
+        result = subprocess.run(
+            [sys.executable, "-m", "mirror_sync.cli", "pull", "backup", "-y",
+             "-f", "wanted.txt"],
+            cwd=project,
+            capture_output=True,
+            text=True,
+        )
+
+        assert result.returncode == 0, f"Pull failed: {result.stderr}"
+        assert (project / "wanted.txt").exists()
+        assert (project / "wanted.txt").read_text() == "wanted content"
+        assert not (project / "unwanted.txt").exists()
