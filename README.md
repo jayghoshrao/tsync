@@ -41,6 +41,13 @@ You may also set each simulation directory as a root with only one specific remo
 pip install tsync
 ```
 
+Or with [uv](https://docs.astral.sh/uv/):
+
+```bash
+uv tool install tsync    # install globally as a CLI tool
+uvx tsync                 # run without installing
+```
+
 Or install from source:
 
 ```bash
