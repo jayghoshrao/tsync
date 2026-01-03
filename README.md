@@ -26,7 +26,9 @@ with a simple push/pull workflow.
 ### Author's use case
 - Have a root directory filled with subdirectories for different simulations
 - Need to run simulations distributed across different machines
-- With the configs set up locally, `tsync push server-1 -f dir01`, `tsync push server-2 -f dir02`, ...
+- With the configs set up locally, 
+    - `tsync push server-1 -f dir01`, `tsync push server-2 -f dir02`, ...
+    - or from `dir01`, `tsync push server-1 -f .`
 - Run simulations on servers. It is now possible to use `tsync cmd ...` for remote execution
 - Run post processing on servers. `tsync cmd ...`
 - Only pull post-processed data to verify, `tsync pull server-1 -f dir01/post`, ...
