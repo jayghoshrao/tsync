@@ -5,14 +5,14 @@ with a simple push/pull workflow.
 
 > [!TIP]
 > `tsync` can be invoked from any nested subdirectory to synchronize the entire tree.
+> Just define your remotes in `.tsync.yaml` at the root, then `tsync push server` from anywhere in the tree.
 
-> [!CAUTION]
-> This tool is tested for the authors workflow and has worked flawlessly for the
-> past several years. However, some caution is advised as this tool deals with
-> synchronizing files across devices. Please keep backups.
-
-> [!NOTE]
-> Feel free to request features or open bug tickets.
+## Use cases
+- Sync source code when developing and testing distributed applications.
+    - git commit/push/pull loop works, but is not a good fit when developing.
+- Sync code to servers that have restrictions on storing private keys (can't pull).
+- Push data+configs, process on another machine, pull only relevant results.
+- Data clone, or a crude backup.
 
 ## Features
 
@@ -22,18 +22,6 @@ with a simple push/pull workflow.
 - **Flexible excludes/includes**: Configure patterns in YAML or override via CLI
 - **Diff with remotes**: Compare local and remote states before syncing
 - **Remote command execution**: Run commands on remotes in the corresponding directory
-
-### Author's use case
-- Have a root directory filled with subdirectories for different simulations
-- Need to run simulations distributed across different machines
-- With the configs set up locally, 
-    - `tsync push server-1 -f dir01`, `tsync push server-2 -f dir02`, ...
-    - or from `dir01`, `tsync push server-1 -f .`
-- Run simulations on servers. It is now possible to use `tsync cmd ...` for remote execution
-- Run post processing on servers. `tsync cmd ...`
-- Only pull post-processed data to verify, `tsync pull server-1 -f dir01/post`, ...
-
-You may also set each simulation directory as a root with only one specific remote where it is to be executed.
 
 ## Installation
 
