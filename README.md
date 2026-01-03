@@ -1,6 +1,6 @@
 # tsync
 
-An rsync wrapper for syncing directory trees between machines with a simple push/pull workflow.
+An rsync wrapper for syncing entire or partial directory trees between machines with a simple push/pull workflow.
 
 ## Features
 
@@ -10,6 +10,16 @@ An rsync wrapper for syncing directory trees between machines with a simple push
 - **Flexible excludes/includes**: Configure patterns in YAML or override via CLI
 - **Diff with remotes**: Compare local and remote states before syncing
 - **Remote command execution**: Run commands on remotes in the corresponding directory
+
+### Author's use case
+- Have a root directory filled with subdirectories for different simulations
+- Need to run simulations distributed across different machines
+- With the configs set up locally, `tsync push server-1 -f dir01`, `tsync push server-2 -f dir02`, ...
+- Run simulations on servers. It is now possible to use `tsync cmd ...` for remote execution
+- Run post processing on servers. `tsync cmd ...`
+- Only pull post-processed data to verify, `tsync pull server-1 -f dir01/post`, ...
+
+You may also set each simulation directory as a root with only one specific remote where it is to be executed.
 
 ## Installation
 
