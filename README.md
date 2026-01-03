@@ -1,6 +1,18 @@
 # tsync
 
-An rsync wrapper for syncing entire or partial directory trees between machines with a simple push/pull workflow.
+An rsync wrapper for syncing entire or partial directory trees between machines
+with a simple push/pull workflow.
+
+> [!TIP]
+> `tsync` can be invoked from any nested subdirectory to synchronize the entire tree.
+
+> [!CAUTION]
+> This tool is tested for the authors workflow and has worked flawlessly for the
+> past several years. However, some caution is advised as this tool deals with
+> synchronizing files across devices. Please keep backups.
+
+> [!NOTE]
+> Feel free to request features or open bug tickets.
 
 ## Features
 
