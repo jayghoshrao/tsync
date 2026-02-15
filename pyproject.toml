@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "tsync"
-version = "0.1.0"
+version = "0.1.1"
 description = "rsync wrapper to sync files between local machine and remotes with push/pull workflow"
 readme = "README.md"
 license = "MIT"
