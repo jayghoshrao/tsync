@@ -353,6 +353,13 @@ def main():
     print(f"Unprocessed args directly passed to {SYNC_COMMAND}: {extra_args_list}")
     sync_args.extend(extra_args_list)
 
+    if config.delete and not args.no_confirm:
+        action = config.mode.upper() if config.mode in ('push', 'pull') else config.mode
+        confirm = input(f"--delete is set! This will DELETE extraneous files on the receiver during {action}. Continue? (y/n) ")
+        if confirm.lower() != 'y':
+            print("Aborted.")
+            return
+
     if config.mode == 'push' and args.target:
         assert all(t in config.remotes.keys() for t in args.target)
         warn = 'y' if args.no_confirm else input(f"PUSH to {args.target}? (y/Y/ENTER to continue)")
